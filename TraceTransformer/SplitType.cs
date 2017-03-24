@@ -38,35 +38,18 @@ namespace TraceTransformer
 
         public void generateConstraints()
         {
-            //foreach (var impl in prog.Implementations)
-            //{
-            //    VisitImplementation(impl);
-            //}
-            VisitImplementation(entryPoint);
-            // prune literals
-            foreach (var procCons in typeConstraints.Values)
+            //VisitImplementation(entryPoint);
+            foreach (var impl in prog.TopLevelDeclarations.OfType<Implementation>())
             {
-                for (int i = procCons.Count - 1; i >= 0; --i)
-                {
-                    int n;
-                    //if (procCons[i].Any(cons => int.TryParse(cons, out n)))
-                    //{
-                    //    procCons.RemoveAt(i);
-                    //}
-                }
+                if (impl.InParams.Count == 0 && impl.OutParams.Count == 0)
+                    continue;
+                else
+                    VisitImplementation(impl);
             }
         }
 
         public void solveConstraints()
         {
-            //foreach (var procSols in typeConstraints.Values)
-            //{
-                //Console.WriteLine("*************************************");
-                //foreach (var group in procSols)
-                //{
-                //    Console.WriteLine(string.Join(", ", group));
-                //}
-            //}
             foreach (var item in typeConstraints)
             {
                 var procCons = item.Value;
@@ -75,10 +58,6 @@ namespace TraceTransformer
                 typeSolutions[proc] = procSolutions;
                 Func<string, int> findSet = delegate (string t)
                 {
-                    //foreach (var group in procSolutions)
-                    //{
-                    //    Console.WriteLine(string.Join(", ", group));
-                    //}
                     for (int i = 0; i < procSolutions.Count; ++i)
                     {
                         if (procSolutions[i].Equals("BV"))
@@ -101,25 +80,6 @@ namespace TraceTransformer
                             groupId[tc] = findSet(tc);
                     }
 
-                    // merge groups if found
-                    //HashSet<string> merged = new HashSet<string>();
-                    //List<HashSet<string>> newList = new List<HashSet<string>>();
-                    //foreach (var id in groupId)
-                    //{
-                    //    if (id != -1)
-                    //        merged.Union(procSolutions.ElementAt(id));
-                    //    //procSolutions.RemoveAt(id);
-                    //    Console.WriteLine(string.Join(", ", procSolutions.ElementAt(id)));
-                    //}
-                    //for (int i = 0; i < procSolutions.Count; ++i)
-                    //{
-                    //    if (!groupId.Contains(i))
-                    //        newList.Add(procSolutions.ElementAt(i));
-                    //}
-
-                    //newList.Add(merged);
-                    //procSolutions = newList;
-
                     // create a group needed
                     if (groupId.Values.All(id => id == -1))
                     {
@@ -135,14 +95,6 @@ namespace TraceTransformer
                     }
                     else
                     {
-                        //var group = procSolutions.ElementAt(groupId.First());
-                        //foreach (var tc in singleCons)
-                        //{
-                        //    if (int.TryParse(tc, out n))
-                        //        continue;
-                        //    else
-                        //        group.Add(tc);
-                        //}
                         HashSet<int> ids = new HashSet<int>(groupId.Values.Where(id => id != -1));
                         if (ids.Count == 1)
                         {
@@ -158,12 +110,6 @@ namespace TraceTransformer
                         else
                         {
                             // merge lists
-                            //Console.WriteLine("****************1********************");
-                            //Console.WriteLine(string.Join(", ", ids));
-                            //foreach (var group in procSolutions)
-                            //{
-                            //    Console.WriteLine(string.Join(", ", group));
-                            //}
                             HashSet<string> merged = new HashSet<string>();
                             List<HashSet<string>> newList = new List<HashSet<string>>();
                             foreach (var id in ids)
@@ -185,13 +131,6 @@ namespace TraceTransformer
                             newList.Add(merged);
                             procSolutions = newList;
                             typeSolutions[proc] = procSolutions;
-                            //Console.WriteLine("*****************2*******************");
-                            //Console.WriteLine(string.Join(", ", ids));
-                            //Console.WriteLine(string.Join(", ", groupId.Keys));
-                            //foreach (var group in procSolutions)
-                            //{
-                            //    Console.WriteLine(string.Join(", ", group));
-                            //}
                         }
                     }
                 }
@@ -204,7 +143,6 @@ namespace TraceTransformer
                 Console.WriteLine("************************************************************************");
                 foreach (var group in procSols)
                 {
-                    //Console.WriteLine(string.Join(", ", group.Where(mem => !mem.Contains("."))));
                     Console.WriteLine(string.Join(", ", group));
                     bool bv = false;
                     if (group.Contains("BV"))
@@ -257,9 +195,11 @@ namespace TraceTransformer
                     }
                 }
             }
-            Console.WriteLine("************************************************************************");
-            foreach (var types in expTypes.Values)
+            foreach (var tuple in expTypes)
             {
+                var types = tuple.Value;
+                var proc = tuple.Key;
+                Console.WriteLine("**********************************" + proc + "**************************************");
                 foreach (var item in types)
                 {
                     var exp = item.Key;
@@ -289,8 +229,16 @@ namespace TraceTransformer
             {
                 varInitTypes[varDecl.Name] = varDecl.TypedIdent.Type;
             }
-            Console.WriteLine(string.Join(",\t", varInitTypes.Keys));
-            Console.WriteLine(string.Join(",\t", varInitTypes.Values));
+            foreach (var param in node.InParams)
+            {
+                varInitTypes[currProc.Name + "_" + param.Name] = param.TypedIdent.Type;
+            }
+            foreach (var ret in node.OutParams)
+            {
+                varInitTypes[currProc.Name + "_" + ret.Name] = ret.TypedIdent.Type;
+            }
+            //Console.WriteLine(string.Join(",\t", varInitTypes.Keys));
+            //Console.WriteLine(string.Join(",\t", varInitTypes.Values));
             return base.VisitImplementation(node);
         }
 
@@ -305,6 +253,27 @@ namespace TraceTransformer
                 VisitExpr(rhs);
             }
             return node;
+        }
+
+        public override Cmd VisitCallCmd(CallCmd node)
+        {
+            // get callee
+            Procedure callee = prog.TopLevelDeclarations.OfType<Procedure>().Where(p => p.Name.Equals(node.callee)).FirstOrDefault();
+            foreach (var pair in node.Ins.Zip(callee.InParams))
+            {
+                var arg = pair.Item1;
+                var param = pair.Item2;
+                expTypes[currProc][callee.Name + "_" + param.Name] = param.TypedIdent.Type;
+                typeConstraints[currProc].Add(new List<string>() { arg.ToString(), callee.Name + "_" + param.Name });
+            }
+            foreach (var pair in node.Outs.Zip(callee.OutParams))
+            {
+                var cRet = pair.Item1;
+                var pRet = pair.Item2;
+                expTypes[currProc][callee.Name + "_" + pRet.Name] = pRet.TypedIdent.Type;
+                typeConstraints[currProc].Add(new List<string>() { cRet.Name, callee.Name + "_" + pRet.Name });
+            }
+            return base.VisitCallCmd(node);
         }
 
         public override Expr VisitExpr(Expr node)

@@ -108,9 +108,7 @@ namespace TraceTransformer
                     node.Args[i] = VisitExpr(node.Args[i]);
                 return node;
             }
-            //bool bv = procTypes[node.ToString()].ToString().Contains("bv");
-            //if (!bv)
-            //    return node;
+
             return base.VisitNAryExpr(node);
         }
     }
