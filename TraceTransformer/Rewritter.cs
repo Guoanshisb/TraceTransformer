@@ -103,7 +103,9 @@ namespace TraceTransformer
                 // build a bv expression
                 var bvFuncName = string.Join(".", funcName.Split('.').Select(elem => !elem.Contains("$") ? "bv" + elem.Substring("i".Length) : elem));
                 node = new NAryExpr(Token.NoToken, new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(func => func.Name.Equals(bvFuncName)).FirstOrDefault()), node.Args);
-                node.Args.Iter(se => VisitExpr(se));
+                //node.Args.Iter(se => VisitExpr(se));
+                for (int i = 0; i < node.Args.Count; ++i)
+                    node.Args[i] = VisitExpr(node.Args[i]);
                 return node;
             }
             //bool bv = procTypes[node.ToString()].ToString().Contains("bv");
