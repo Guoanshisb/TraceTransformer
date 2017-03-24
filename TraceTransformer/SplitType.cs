@@ -25,6 +25,11 @@ namespace TraceTransformer
             this.typeSolutions = new Dictionary<Procedure, List<HashSet<string>>>();
         }
 
+        public Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>> getTypes()
+        {
+            return expTypes;
+        }
+
         public void Run()
         {
             generateConstraints();

@@ -19,6 +19,8 @@ namespace TraceTransformer
             var program = BoogieUtil.ReadAndResolve(args[0], false);
             var st = new SplitType(program, "main_trace_1");
             st.Run();
+            var rw = new Rewritter(program, st.getTypes(), args[1]);
+            rw.Rewrite();
         }
     }
 }
