@@ -2,6 +2,7 @@
 using Microsoft.Boogie;
 using System.Linq;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 namespace TraceTransformer
 {
@@ -34,6 +35,7 @@ namespace TraceTransformer
         {
             generateConstraints();
             solveConstraints();
+            showResultTypes();
         }
 
         public void generateConstraints()
@@ -56,6 +58,7 @@ namespace TraceTransformer
                 var proc = item.Key;
                 var procSolutions = new List<HashSet<string>>();
                 typeSolutions[proc] = procSolutions;
+
                 Func<string, int> findSet = delegate (string t)
                 {
                     for (int i = 0; i < procSolutions.Count; ++i)
@@ -70,8 +73,8 @@ namespace TraceTransformer
 
                 foreach (var singleCons in procCons)
                 {
-                    int n;
-                    if (singleCons.Count == 2 && singleCons.Any(cons => int.TryParse(cons, out n)))
+                    double n;
+                    if (singleCons.Count == 2 && singleCons.Any(cons => double.TryParse(cons, out n)))
                         continue;
                     Dictionary<string, int> groupId = new Dictionary<string, int>();
                     foreach (var tc in singleCons)
@@ -87,7 +90,7 @@ namespace TraceTransformer
                         procSolutions.Add(group);
                         foreach (var tc in singleCons)
                         {
-                            if (int.TryParse(tc, out n))
+                            if (double.TryParse(tc, out n))
                                 continue;
                             else
                                 group.Add(tc);
@@ -101,7 +104,7 @@ namespace TraceTransformer
                             var group = procSolutions.ElementAt(ids.First());
                             foreach (var tc in singleCons)
                             {
-                                if (int.TryParse(tc, out n))
+                                if (double.TryParse(tc, out n))
                                     continue;
                                 else
                                     group.Add(tc);
@@ -118,7 +121,7 @@ namespace TraceTransformer
                             }
                             foreach (var tc in singleCons)
                             {
-                                if (int.TryParse(tc, out n))
+                                if (double.TryParse(tc, out n))
                                     continue;
                                 else
                                     merged.Add(tc);
@@ -135,6 +138,88 @@ namespace TraceTransformer
                     }
                 }
             }
+            // find if param/return is bv
+            HashSet<string> bvParams = new HashSet<string>();
+            HashSet<string> oldBvParams = new HashSet<string>();
+
+            do
+            {
+                oldBvParams = new HashSet<string>(bvParams);
+                foreach (var item in typeSolutions)
+                {
+                    var proc = item.Key;
+                    var types = item.Value;
+                    foreach (var tc in types)
+                    {
+                        var ios = tc.Where(t => t.Contains('_'));
+                        if (ios.Count() == 0)
+                            continue;
+                        else
+                        {
+                            if (tc.Contains("BV"))
+                            {
+                                bvParams.UnionWith(ios);
+                            }
+                            else
+                            {
+                                continue;
+                            }
+                        }
+                    }
+                }
+                // update the solution
+                foreach (var item in typeSolutions)
+                {
+                    var proc = item.Key;
+                    var types = item.Value;
+                    HashSet<string> bvIns = new HashSet<string>();
+                    HashSet<string> bvOuts = new HashSet<string>();
+
+                    foreach (var inP in proc.InParams)
+                    {
+                        if (bvParams.Contains(proc.Name + "_" + inP.Name))
+                            bvIns.Add(inP.Name);
+                    }
+
+                    foreach (var outP in proc.OutParams)
+                    {
+                        if (bvParams.Contains(proc.Name + "_" + outP.Name))
+                            bvOuts.Add(outP.Name);
+                    }
+
+                    foreach (var tc in types)
+                    {
+                        if (tc.Any(t => bvParams.Contains(t) || bvIns.Contains(t) || bvOuts.Contains(t)))
+                            tc.Add("BV");
+                    }
+                    var bvEs = new HashSet<string>();
+                    //bvEs.UnionWith(bvParams);
+                    bvEs.UnionWith(bvIns);
+                    bvEs.UnionWith(bvOuts);
+
+                    foreach (var bvE in bvEs)
+                    {
+                        bool has = false;
+                        foreach (var tc in types)
+                        {
+                            if (tc.Any(t => bvEs.Contains(t)))
+                            {
+                                //tc.Add("BV");
+                                has = true;
+                            }
+                        }
+                        if (!has)
+                        {
+                            types.Add(new HashSet<string>() { bvE, "BV" });
+                        }
+                    }
+                }               
+            } while (!bvParams.SetEquals(oldBvParams));
+
+        }
+
+        public void showResultTypes()
+        {
             foreach (var item in typeSolutions)
             {
                 var proc = item.Key;
@@ -231,11 +316,11 @@ namespace TraceTransformer
             }
             foreach (var param in node.InParams)
             {
-                varInitTypes[currProc.Name + "_" + param.Name] = param.TypedIdent.Type;
+                varInitTypes[param.Name] = param.TypedIdent.Type;
             }
             foreach (var ret in node.OutParams)
             {
-                varInitTypes[currProc.Name + "_" + ret.Name] = ret.TypedIdent.Type;
+                varInitTypes[ret.Name] = ret.TypedIdent.Type;
             }
             //Console.WriteLine(string.Join(",\t", varInitTypes.Keys));
             //Console.WriteLine(string.Join(",\t", varInitTypes.Values));
@@ -291,12 +376,14 @@ namespace TraceTransformer
                 }
                 else if (e.Fun.FunctionName.Equals("!"))
                 {
-                  // recurse
+                    // recurse
                 }
                 //else if (e.Fun.FunctionName.Equals("==") || e.Fun.FunctionName.Split('.')[0].Equals("$eq") || e.Fun.FunctionName.Split('.')[0].Equals("$ne"))
-                else if (e.Fun.FunctionName.Equals("=="))
+                else if (e.Fun.FunctionName.Equals("==") || e.Fun.FunctionName.Equals("!="))
                 {
+                    //Console.WriteLine("======>" + e.Args[0].ToString());
                     typeConstraints[currProc].Add(e.Args.Select(arg => arg.ToString()).ToList());
+                    Console.WriteLine(string.Join("=====>", e.Args.Select(arg => arg.ToString()).ToList()));
                 }
                 else
                 {

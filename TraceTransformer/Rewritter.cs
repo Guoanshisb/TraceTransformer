@@ -39,13 +39,90 @@ namespace TraceTransformer
             {
                 localVar.TypedIdent = new TypedIdent(Token.NoToken, localVar.Name, types[localVar.Name]);
             }
+            // rewrite ins and outs
+            foreach (var pair in p.InParams.Zip(p.Proc.InParams))
+            {
+                var mInP = pair.Item1;
+                var pInP = pair.Item2;
+                if (types.Keys.Contains(mInP.Name))
+                {
+                    mInP.TypedIdent.Type = types[mInP.Name];
+                    pInP.TypedIdent.Type = types[pInP.Name];
+                }
+            }
+            foreach (var pair in p.OutParams.Zip(p.Proc.OutParams))
+            {
+                var mOutP = pair.Item1;
+                var pOutP = pair.Item2;
+                if (types.Keys.Contains(mOutP.Name))
+                {
+                    mOutP.TypedIdent.Type = types[mOutP.Name];
+                    pOutP.TypedIdent.Type = types[pOutP.Name];
+                }
+            }
             procTypes = types;
             VisitImplementation(p);
         }
 
+        public override Cmd VisitCallCmd(CallCmd node)
+        {
+            Procedure callee = prog.TopLevelDeclarations.OfType<Procedure>().Where(p => p.Name.Equals(node.callee)).FirstOrDefault();
+            foreach (var pair in node.Ins.Zip(callee.InParams))
+            {
+                var arg = pair.Item1;
+                var param = pair.Item2;
+                // TODO: arg is a literal
+                if (procTypes.Keys.Contains(callee.Name + "_" + param.Name) && !procTypes[callee.Name + "_" + param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                {
+                    param.TypedIdent.Type = procTypes[callee.Name + "_" + param.Name];
+                }
+            }
+            foreach (var pair in node.Outs.Zip(callee.OutParams))
+            {
+                var arg = pair.Item1;
+                var param = pair.Item2;
+                // TODO: arg is a literal
+                if (procTypes.Keys.Contains(callee.Name + "_" + param.Name) && !procTypes[callee.Name + "_" + param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                {
+                    param.TypedIdent.Type = procTypes[callee.Name + "_" + param.Name];
+                }
+            }
+            return node;
+        }
+
+        public override Cmd VisitAssignCmd(AssignCmd node)
+        {
+            List<Expr> newRhss = new List<Expr>();
+            for (int i = 0; i < node.Lhss.Count; ++i)
+            {
+                var lhs = node.Lhss[i];
+                var rhs = node.Rhss[i];
+                newRhss.Add(rhs);
+                if (rhs is LiteralExpr && (rhs as LiteralExpr).isBigNum)
+                {
+                    if (procTypes[lhs.AsExpr.ToString()].ToString().Contains("bv"))
+                    {
+                        int width;
+                        if (int.TryParse(procTypes[lhs.AsExpr.ToString()].ToString().Substring("bv".Length), out width))
+                        {
+                            newRhss[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Rhss[i].ToString()), width));
+                            //node.Rhss[i].Type = Microsoft.Boogie.Type.GetBvType(width);
+                            //Console.WriteLine("<==========>" + node.Rhss[i].Type.ToString());
+                        }
+                        else
+                        {
+                            Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                        }
+                    }
+                }
+            }
+            node.Rhss = newRhss;
+            return base.VisitAssignCmd(node);
+        }
+
         public override Expr VisitNAryExpr(NAryExpr node)
         {
-            if (node.Fun.FunctionName == "==")
+            if (node.Fun.FunctionName == "==" || node.Fun.FunctionName == "!=")
             {
                 if (node.Args.Any(arg => arg is LiteralExpr && !(arg as LiteralExpr).isBool))
                 {
@@ -60,11 +137,10 @@ namespace TraceTransformer
                         return node;
                     if (!procTypes[node.Args[noLit].ToString()].ToString().Contains("bv"))
                         return node;
-                    int num;
                     int width;
-                    if (int.TryParse(node.Args[lit].ToString(), out num) && int.TryParse(procTypes[node.Args[noLit].ToString()].ToString().Substring("bv".Length), out width))
+                    if (int.TryParse(procTypes[node.Args[noLit].ToString()].ToString().Substring("bv".Length), out width))
                     {
-                        node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromInt(num), width);
+                        node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Args[lit].ToString()), width);
                     }
                     else
                     {
@@ -87,11 +163,10 @@ namespace TraceTransformer
                     var arg = node.Args[i];
                     if (arg is LiteralExpr && !(arg as LiteralExpr).isBool)
                     {
-                        int num;
                         int width;
-                        if (int.TryParse(arg.ToString(), out num) && int.TryParse(inputType.Substring("i".Length), out width))
+                        if (int.TryParse(inputType.Substring("i".Length), out width))
                         {
-                            node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromInt(num), width);
+                            node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width);
                         }
                         else
                         {
