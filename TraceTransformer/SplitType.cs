@@ -381,9 +381,7 @@ namespace TraceTransformer
                 //else if (e.Fun.FunctionName.Equals("==") || e.Fun.FunctionName.Split('.')[0].Equals("$eq") || e.Fun.FunctionName.Split('.')[0].Equals("$ne"))
                 else if (e.Fun.FunctionName.Equals("==") || e.Fun.FunctionName.Equals("!="))
                 {
-                    //Console.WriteLine("======>" + e.Args[0].ToString());
                     typeConstraints[currProc].Add(e.Args.Select(arg => arg.ToString()).ToList());
-                    Console.WriteLine(string.Join("=====>", e.Args.Select(arg => arg.ToString()).ToList()));
                 }
                 else
                 {
