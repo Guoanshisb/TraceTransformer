@@ -17,10 +17,10 @@ namespace TraceTransformer
             CommandLineOptions.Clo.DoModSetAnalysis = true;
 
             var program = BoogieUtil.ReadAndResolve(args[0], false);
-            var st = new SplitType(program, "main_trace_1");
+            var st = new SplitType(program);
             st.Run();
-            var rw = new Rewritter(program, st.getTypes(), args[1]);
-            rw.Rewrite();
+            //var rw = new Rewritter(program, st.getTypes(), args[1]);
+            //rw.Rewrite();
         }
     }
 }

@@ -9,19 +9,23 @@ namespace TraceTransformer
     public class SplitType : StandardVisitor
     {
         Program prog;
-        Implementation entryPoint;
         Procedure currProc;
         Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>> expTypes;
         Dictionary<Procedure, List<List<string>>> typeConstraints;
+        Dictionary<string, int> typeVar2Id;
+        Dictionary<int, string> Id2TypeVar;
         List<string> bvOps;
+        int idCounter;
         Dictionary<Procedure, List<HashSet<string>>> typeSolutions;
 
-        public SplitType(Program prog, string entryPoint)
+        public SplitType(Program prog)
         {
             this.prog = prog;
-            this.entryPoint = prog.TopLevelDeclarations.OfType<Implementation>().Where(impl => impl.Name == entryPoint).FirstOrDefault();
-            this.expTypes = new Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>>();
-            this.typeConstraints = new Dictionary<Procedure, List<List<string>>>();
+            expTypes = new Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>>();
+            typeConstraints = new Dictionary<Procedure, List<List<string>>>();
+            typeVar2Id = new Dictionary<string, int>();
+            Id2TypeVar = new Dictionary<int, string>();
+            idCounter = 0;
             bvOps = new List<string>() {"$and", "$or", "$lshr", "$shl", "$xor"};
             this.typeSolutions = new Dictionary<Procedure, List<HashSet<string>>>();
         }
@@ -34,8 +38,9 @@ namespace TraceTransformer
         public void Run()
         {
             generateConstraints();
-            solveConstraints();
-            showResultTypes();
+            //solveConstraints();
+            newSolveConstraints();
+            //showResultTypes();
         }
 
         public void generateConstraints()
@@ -48,6 +53,110 @@ namespace TraceTransformer
                 else
                     VisitImplementation(impl);
             }
+            typeConstraints.Iter(item => printContraints(item.Key));
+        }
+
+        public void printContraints(Procedure proc)
+        {
+            Console.WriteLine("========================" + proc.Name + "========================");
+            foreach (var cons in typeConstraints[proc])
+            {
+                if (cons.Count == 2 && cons.Any(con => isNumber(getExprFromTypeVar(con))))
+                    continue;
+                else
+                    Console.WriteLine(string.Join(", ", cons));
+            }
+        }
+
+        public void buildVarIdMaps(string tv)
+        {
+            if (!tv.Equals("BV") && !typeVar2Id.Keys.Contains(tv))
+            {
+                typeVar2Id[tv] = idCounter;
+                Id2TypeVar[idCounter] = tv;
+                idCounter++;
+            }
+        }
+
+        public int tv2Id(string tv)
+        {
+            if (tv.Equals("BV"))
+                return -1;
+            else
+                return typeVar2Id[tv];
+        }
+
+        public string id2Tv(int id)
+        {
+            if (id == -1)
+                return "BV";
+            else
+                return Id2TypeVar[id];
+        }
+
+        public void newSolveConstraints()
+        {
+            // let's do it per-proc first
+            foreach (var item in typeConstraints)
+            {
+                var proc = item.Key;
+                var cons = item.Value;
+                // build maps from type var to id and vice vera
+                foreach (var con in cons)
+                {
+                    // (proc-expr == proc-1) is not going to help us
+                    if (cons.Count == 2 && con.Any(tv => isNumber(getExprFromTypeVar(tv))))
+                        continue;
+                    //con.Iter(tv => buildVarIdMaps(tv));
+                    foreach (var tv in con)
+                    {
+                        if (isNumber(getExprFromTypeVar(tv)))
+                            continue;
+                        else
+                            buildVarIdMaps(tv);
+                    }
+                }
+                // translate type constraints to numbers
+                var newCons = new List<List<int>>();
+                //cons.Iter(con => newCons.Add(con.Select(tv => tv2Id(tv)).ToList()));
+                foreach (var con in cons)
+                {
+                    if (cons.Count == 2 && con.Any(tv => isNumber(getExprFromTypeVar(tv))))
+                        continue;
+                    //newCons.Add(con.Select(tv => tv2Id(tv)).ToList());
+                    var newCon = new List<int>();
+                    foreach (var tv in con)
+                    {
+                        if (isNumber(getExprFromTypeVar(tv)))
+                            continue;
+                        else
+                            newCon.Add(tv2Id(tv));
+                    }
+                    newCons.Add(newCon);
+                }
+                var ui = new Unifier(newCons);
+                var sol = ui.Unify();
+                Console.WriteLine("========================" + proc.Name + "========================");
+                sol.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+            }
+        }
+
+        public string expr2TypeVar(Expr e, string proc)
+        {
+            return expr2TypeVar(e.ToString(), proc);
+        }
+
+        public string expr2TypeVar(string e, string proc)
+        {
+            return proc + "-" + e;
+        }
+
+        public string getExprFromTypeVar(string tv)
+        {
+            if (tv.Equals("BV"))
+                return tv;
+            else
+                return tv.Split('-')[1];
         }
 
         public void solveConstraints()
@@ -294,6 +403,15 @@ namespace TraceTransformer
             }
         }
 
+        public bool isNumber(string e)
+        {
+            double tmp;
+            if (double.TryParse(e, out tmp))
+                return true;
+            else
+                return false;
+        }
+
         public int getIntWidth(string t)
         {
             int length = -1;
@@ -333,7 +451,7 @@ namespace TraceTransformer
             {
                 var lhs = assign.Item1;
                 var rhs = assign.Item2;
-                typeConstraints[currProc].Add(new List<string>() { lhs.AsExpr.ToString(), rhs.ToString() });
+                typeConstraints[currProc].Add(new List<string>() {  expr2TypeVar(lhs.AsExpr, currProc.Name), expr2TypeVar(rhs, currProc.Name) });
                 VisitExpr(lhs.AsExpr);
                 VisitExpr(rhs);
             }
@@ -348,15 +466,13 @@ namespace TraceTransformer
             {
                 var arg = pair.Item1;
                 var param = pair.Item2;
-                expTypes[currProc][callee.Name + "_" + param.Name] = param.TypedIdent.Type;
-                typeConstraints[currProc].Add(new List<string>() { arg.ToString(), callee.Name + "_" + param.Name });
+                typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), expr2TypeVar(param.Name, callee.Name) });
             }
             foreach (var pair in node.Outs.Zip(callee.OutParams))
             {
                 var cRet = pair.Item1;
                 var pRet = pair.Item2;
-                expTypes[currProc][callee.Name + "_" + pRet.Name] = pRet.TypedIdent.Type;
-                typeConstraints[currProc].Add(new List<string>() { cRet.Name, callee.Name + "_" + pRet.Name });
+                typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(cRet, currProc.Name), expr2TypeVar(pRet.Name, callee.Name) });
             }
             return base.VisitCallCmd(node);
         }
@@ -370,23 +486,23 @@ namespace TraceTransformer
                 {
                     foreach (var arg in e.Args)
                     {
-                        typeConstraints[currProc].Add(new List<string>() { arg.ToString(), "BV" });
+                        typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), "BV" });
                     }
-                    typeConstraints[currProc].Add(new List<string>() { e.ToString(), "BV" });
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(e, currProc.Name), "BV" });
                 }
                 else if (e.Fun.FunctionName.Equals("!"))
                 {
-                    // recurse
+                    // pass
                 }
                 //else if (e.Fun.FunctionName.Equals("==") || e.Fun.FunctionName.Split('.')[0].Equals("$eq") || e.Fun.FunctionName.Split('.')[0].Equals("$ne"))
                 else if (e.Fun.FunctionName.Equals("==") || e.Fun.FunctionName.Equals("!="))
                 {
-                    typeConstraints[currProc].Add(e.Args.Select(arg => arg.ToString()).ToList());
+                    typeConstraints[currProc].Add(e.Args.Select(arg => expr2TypeVar(arg, currProc.Name)).ToList());
                 }
                 else
                 {
-                    var exprCons = e.Args.Select(arg => arg.ToString()).ToList();
-                    exprCons.Add(e.ToString());
+                    var exprCons = e.Args.Select(arg => expr2TypeVar(arg, currProc.Name)).ToList();
+                    exprCons.Add(expr2TypeVar(e, currProc.Name));
                     typeConstraints[currProc].Add(exprCons);
                 }
                 foreach (var arg in e.Args)
