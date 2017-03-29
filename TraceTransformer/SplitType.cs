@@ -39,12 +39,12 @@ namespace TraceTransformer
             generateConstraints();
             solveConstraints();
             updateExprTypes();
-            showUpdatedTypes();
+            //showUpdatedTypes();
         }
 
         public void generateConstraints()
         {
-            //VisitImplementation(entryPoint);
+            //VisitImplementation(sol);
             foreach (var impl in prog.TopLevelDeclarations.OfType<Implementation>())
             {
                 if (impl.InParams.Count == 0 && impl.OutParams.Count == 0)
@@ -52,7 +52,7 @@ namespace TraceTransformer
                 else
                     VisitImplementation(impl);
             }
-            typeConstraints.Iter(item => printContraints(item.Key));
+            //typeConstraints.Iter(item => printContraints(item.Key));
         }
 
         public void printContraints(Procedure proc)
@@ -144,8 +144,8 @@ namespace TraceTransformer
             }
             var ui = new Unifier(allCons);
             solsInInt = ui.Unify();
-            Console.WriteLine("========================solution========================");
-            solsInInt.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+            //Console.WriteLine("========================solution========================");
+            //solsInInt.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
         }
 
         public void updateExprTypes()
