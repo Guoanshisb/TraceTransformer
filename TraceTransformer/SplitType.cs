@@ -38,8 +38,7 @@ namespace TraceTransformer
         public void Run()
         {
             generateConstraints();
-            //solveConstraints();
-            newSolveConstraints();
+            solveConstraints();
             //showResultTypes();
         }
 
@@ -94,9 +93,16 @@ namespace TraceTransformer
                 return Id2TypeVar[id];
         }
 
-        public void newSolveConstraints()
+        public List<List<int>> stringCons2IntCons(List<List<string>> strCons)
+        {
+            var intCons = new List<List<int>>();
+            return intCons;
+        }
+
+        public void solveConstraints()
         {
             // let's do it per-proc first
+            var allCons = new List<List<int>>();
             foreach (var item in typeConstraints)
             {
                 var proc = item.Key;
@@ -134,11 +140,12 @@ namespace TraceTransformer
                     }
                     newCons.Add(newCon);
                 }
-                var ui = new Unifier(newCons);
-                var sol = ui.Unify();
-                Console.WriteLine("========================" + proc.Name + "========================");
-                sol.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+                allCons.AddRange(newCons);
             }
+            var ui = new Unifier(allCons);
+            var sol = ui.Unify();
+            Console.WriteLine("========================solution========================");
+            sol.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
         }
 
         public string expr2TypeVar(Expr e, string proc)
@@ -159,173 +166,173 @@ namespace TraceTransformer
                 return tv.Split('-')[1];
         }
 
-        public void solveConstraints()
-        {
-            foreach (var item in typeConstraints)
-            {
-                var procCons = item.Value;
-                var proc = item.Key;
-                var procSolutions = new List<HashSet<string>>();
-                typeSolutions[proc] = procSolutions;
+        //public void solveConstraints()
+        //{
+        //    foreach (var item in typeConstraints)
+        //    {
+        //        var procCons = item.Value;
+        //        var proc = item.Key;
+        //        var procSolutions = new List<HashSet<string>>();
+        //        typeSolutions[proc] = procSolutions;
 
-                Func<string, int> findSet = delegate (string t)
-                {
-                    for (int i = 0; i < procSolutions.Count; ++i)
-                    {
-                        if (procSolutions[i].Equals("BV"))
-                            continue;
-                        if (procSolutions[i].Contains(t))
-                            return i;
-                    }
-                    return -1;
-                };
+        //        Func<string, int> findSet = delegate (string t)
+        //        {
+        //            for (int i = 0; i < procSolutions.Count; ++i)
+        //            {
+        //                if (procSolutions[i].Equals("BV"))
+        //                    continue;
+        //                if (procSolutions[i].Contains(t))
+        //                    return i;
+        //            }
+        //            return -1;
+        //        };
 
-                foreach (var singleCons in procCons)
-                {
-                    double n;
-                    if (singleCons.Count == 2 && singleCons.Any(cons => double.TryParse(cons, out n)))
-                        continue;
-                    Dictionary<string, int> groupId = new Dictionary<string, int>();
-                    foreach (var tc in singleCons)
-                    {
-                        if (!tc.Equals("BV"))
-                            groupId[tc] = findSet(tc);
-                    }
+        //        foreach (var singleCons in procCons)
+        //        {
+        //            double n;
+        //            if (singleCons.Count == 2 && singleCons.Any(cons => double.TryParse(cons, out n)))
+        //                continue;
+        //            Dictionary<string, int> groupId = new Dictionary<string, int>();
+        //            foreach (var tc in singleCons)
+        //            {
+        //                if (!tc.Equals("BV"))
+        //                    groupId[tc] = findSet(tc);
+        //            }
 
-                    // create a group needed
-                    if (groupId.Values.All(id => id == -1))
-                    {
-                        var group = new HashSet<string>();
-                        procSolutions.Add(group);
-                        foreach (var tc in singleCons)
-                        {
-                            if (double.TryParse(tc, out n))
-                                continue;
-                            else
-                                group.Add(tc);
-                        }
-                    }
-                    else
-                    {
-                        HashSet<int> ids = new HashSet<int>(groupId.Values.Where(id => id != -1));
-                        if (ids.Count == 1)
-                        {
-                            var group = procSolutions.ElementAt(ids.First());
-                            foreach (var tc in singleCons)
-                            {
-                                if (double.TryParse(tc, out n))
-                                    continue;
-                                else
-                                    group.Add(tc);
-                            }
-                        }
-                        else
-                        {
-                            // merge lists
-                            HashSet<string> merged = new HashSet<string>();
-                            List<HashSet<string>> newList = new List<HashSet<string>>();
-                            foreach (var id in ids)
-                            {
-                                merged.UnionWith(new HashSet<string>(procSolutions.ElementAt(id)));
-                            }
-                            foreach (var tc in singleCons)
-                            {
-                                if (double.TryParse(tc, out n))
-                                    continue;
-                                else
-                                    merged.Add(tc);
-                            }
-                            for (int i = 0; i < procSolutions.Count; ++i)
-                            {
-                                if (!ids.Contains(i))
-                                    newList.Add(new HashSet<string>(procSolutions.ElementAt(i)));
-                            }
-                            newList.Add(merged);
-                            procSolutions = newList;
-                            typeSolutions[proc] = procSolutions;
-                        }
-                    }
-                }
-            }
-            // find if param/return is bv
-            HashSet<string> bvParams = new HashSet<string>();
-            HashSet<string> oldBvParams = new HashSet<string>();
+        //            // create a group needed
+        //            if (groupId.Values.All(id => id == -1))
+        //            {
+        //                var group = new HashSet<string>();
+        //                procSolutions.Add(group);
+        //                foreach (var tc in singleCons)
+        //                {
+        //                    if (double.TryParse(tc, out n))
+        //                        continue;
+        //                    else
+        //                        group.Add(tc);
+        //                }
+        //            }
+        //            else
+        //            {
+        //                HashSet<int> ids = new HashSet<int>(groupId.Values.Where(id => id != -1));
+        //                if (ids.Count == 1)
+        //                {
+        //                    var group = procSolutions.ElementAt(ids.First());
+        //                    foreach (var tc in singleCons)
+        //                    {
+        //                        if (double.TryParse(tc, out n))
+        //                            continue;
+        //                        else
+        //                            group.Add(tc);
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    // merge lists
+        //                    HashSet<string> merged = new HashSet<string>();
+        //                    List<HashSet<string>> newList = new List<HashSet<string>>();
+        //                    foreach (var id in ids)
+        //                    {
+        //                        merged.UnionWith(new HashSet<string>(procSolutions.ElementAt(id)));
+        //                    }
+        //                    foreach (var tc in singleCons)
+        //                    {
+        //                        if (double.TryParse(tc, out n))
+        //                            continue;
+        //                        else
+        //                            merged.Add(tc);
+        //                    }
+        //                    for (int i = 0; i < procSolutions.Count; ++i)
+        //                    {
+        //                        if (!ids.Contains(i))
+        //                            newList.Add(new HashSet<string>(procSolutions.ElementAt(i)));
+        //                    }
+        //                    newList.Add(merged);
+        //                    procSolutions = newList;
+        //                    typeSolutions[proc] = procSolutions;
+        //                }
+        //            }
+        //        }
+        //    }
+        //    // find if param/return is bv
+        //    HashSet<string> bvParams = new HashSet<string>();
+        //    HashSet<string> oldBvParams = new HashSet<string>();
 
-            do
-            {
-                oldBvParams = new HashSet<string>(bvParams);
-                foreach (var item in typeSolutions)
-                {
-                    var proc = item.Key;
-                    var types = item.Value;
-                    foreach (var tc in types)
-                    {
-                        var ios = tc.Where(t => t.Contains('_'));
-                        if (ios.Count() == 0)
-                            continue;
-                        else
-                        {
-                            if (tc.Contains("BV"))
-                            {
-                                bvParams.UnionWith(ios);
-                            }
-                            else
-                            {
-                                continue;
-                            }
-                        }
-                    }
-                }
-                // update the solution
-                foreach (var item in typeSolutions)
-                {
-                    var proc = item.Key;
-                    var types = item.Value;
-                    HashSet<string> bvIns = new HashSet<string>();
-                    HashSet<string> bvOuts = new HashSet<string>();
+        //    do
+        //    {
+        //        oldBvParams = new HashSet<string>(bvParams);
+        //        foreach (var item in typeSolutions)
+        //        {
+        //            var proc = item.Key;
+        //            var types = item.Value;
+        //            foreach (var tc in types)
+        //            {
+        //                var ios = tc.Where(t => t.Contains('_'));
+        //                if (ios.Count() == 0)
+        //                    continue;
+        //                else
+        //                {
+        //                    if (tc.Contains("BV"))
+        //                    {
+        //                        bvParams.UnionWith(ios);
+        //                    }
+        //                    else
+        //                    {
+        //                        continue;
+        //                    }
+        //                }
+        //            }
+        //        }
+        //        // update the solution
+        //        foreach (var item in typeSolutions)
+        //        {
+        //            var proc = item.Key;
+        //            var types = item.Value;
+        //            HashSet<string> bvIns = new HashSet<string>();
+        //            HashSet<string> bvOuts = new HashSet<string>();
 
-                    foreach (var inP in proc.InParams)
-                    {
-                        if (bvParams.Contains(proc.Name + "_" + inP.Name))
-                            bvIns.Add(inP.Name);
-                    }
+        //            foreach (var inP in proc.InParams)
+        //            {
+        //                if (bvParams.Contains(proc.Name + "_" + inP.Name))
+        //                    bvIns.Add(inP.Name);
+        //            }
 
-                    foreach (var outP in proc.OutParams)
-                    {
-                        if (bvParams.Contains(proc.Name + "_" + outP.Name))
-                            bvOuts.Add(outP.Name);
-                    }
+        //            foreach (var outP in proc.OutParams)
+        //            {
+        //                if (bvParams.Contains(proc.Name + "_" + outP.Name))
+        //                    bvOuts.Add(outP.Name);
+        //            }
 
-                    foreach (var tc in types)
-                    {
-                        if (tc.Any(t => bvParams.Contains(t) || bvIns.Contains(t) || bvOuts.Contains(t)))
-                            tc.Add("BV");
-                    }
-                    var bvEs = new HashSet<string>();
-                    //bvEs.UnionWith(bvParams);
-                    bvEs.UnionWith(bvIns);
-                    bvEs.UnionWith(bvOuts);
+        //            foreach (var tc in types)
+        //            {
+        //                if (tc.Any(t => bvParams.Contains(t) || bvIns.Contains(t) || bvOuts.Contains(t)))
+        //                    tc.Add("BV");
+        //            }
+        //            var bvEs = new HashSet<string>();
+        //            //bvEs.UnionWith(bvParams);
+        //            bvEs.UnionWith(bvIns);
+        //            bvEs.UnionWith(bvOuts);
 
-                    foreach (var bvE in bvEs)
-                    {
-                        bool has = false;
-                        foreach (var tc in types)
-                        {
-                            if (tc.Any(t => bvEs.Contains(t)))
-                            {
-                                //tc.Add("BV");
-                                has = true;
-                            }
-                        }
-                        if (!has)
-                        {
-                            types.Add(new HashSet<string>() { bvE, "BV" });
-                        }
-                    }
-                }               
-            } while (!bvParams.SetEquals(oldBvParams));
+        //            foreach (var bvE in bvEs)
+        //            {
+        //                bool has = false;
+        //                foreach (var tc in types)
+        //                {
+        //                    if (tc.Any(t => bvEs.Contains(t)))
+        //                    {
+        //                        //tc.Add("BV");
+        //                        has = true;
+        //                    }
+        //                }
+        //                if (!has)
+        //                {
+        //                    types.Add(new HashSet<string>() { bvE, "BV" });
+        //                }
+        //            }
+        //        }               
+        //    } while (!bvParams.SetEquals(oldBvParams));
 
-        }
+        //}
 
         public void showResultTypes()
         {
