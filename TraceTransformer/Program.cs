@@ -19,6 +19,8 @@ namespace TraceTransformer
             var program = BoogieUtil.ReadAndResolve(args[0], false);
             var ci = new ConstantInliner(program);
             ci.Inline();
+            var fk = new ForkProcsWithoutImpls(program);
+            fk.Fork();
             var st = new SplitType(program);
             st.Run();
             var rw = new Rewritter(program, st.getTypes(), args[1]);
