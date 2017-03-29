@@ -573,7 +573,7 @@ namespace TraceTransformer
             if (node is NAryExpr)
             {
                 var e = node as NAryExpr;
-                if (bvOps.Contains(e.Fun.FunctionName.Split('.')[0]))
+                if (bvOps.Contains(e.Fun.FunctionName.Split('.')[0]) && !e.Fun.FunctionName.Split('.')[1].Equals("i1"))
                 {
                     foreach (var arg in e.Args)
                     {
