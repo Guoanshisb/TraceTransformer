@@ -8,12 +8,12 @@ namespace TraceTransformer
 {
     public class Rewritter : StandardVisitor
     {
-        Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>> expTypes;
+        Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> expTypes;
         Program prog;
         string outputProg;
         Dictionary<string, Microsoft.Boogie.Type> procTypes;
 
-        public Rewritter(Program prog, Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>> expTypes, string outputProg)
+        public Rewritter(Program prog, Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> expTypes, string outputProg)
         {
             this.prog = prog;
             this.expTypes = expTypes;
@@ -24,9 +24,13 @@ namespace TraceTransformer
         {
             foreach (var item in expTypes)
             {
-                var proc = item.Key;
+                var procName = item.Key;
                 var types = item.Value;
-                RewriteImpl(prog.TopLevelDeclarations.OfType<Implementation>().Where(impl => impl.Name.Equals(proc.Name)).FirstOrDefault(), types);
+                var impls = prog.TopLevelDeclarations.OfType<Implementation>().Where(impl => impl.Name.Equals(procName));
+                if (impls.Count() == 0)
+                    continue;
+                else
+                    RewriteImpl(impls.First(), types);
             }
             BoogieUtil.PrintProgram(prog, outputProg);
 
@@ -72,20 +76,19 @@ namespace TraceTransformer
                 var arg = pair.Item1;
                 var param = pair.Item2;
                 // TODO: arg is a literal
-                if (procTypes.Keys.Contains(callee.Name + "_" + param.Name) && !procTypes[callee.Name + "_" + param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
-                {
-                    param.TypedIdent.Type = procTypes[callee.Name + "_" + param.Name];
-                }
+                //if (procTypes.Keys.Contains(callee.Name + "_" + param.Name) && !procTypes[callee.Name + "_" + param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                //{
+                //    param.TypedIdent.Type = procTypes[callee.Name + "_" + param.Name];
+                //}
+                if (expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                    param.TypedIdent.Type = expTypes[callee.Name][param.Name];
             }
             foreach (var pair in node.Outs.Zip(callee.OutParams))
             {
                 var arg = pair.Item1;
                 var param = pair.Item2;
-                // TODO: arg is a literal
-                if (procTypes.Keys.Contains(callee.Name + "_" + param.Name) && !procTypes[callee.Name + "_" + param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
-                {
-                    param.TypedIdent.Type = procTypes[callee.Name + "_" + param.Name];
-                }
+                if (expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                    param.TypedIdent.Type = expTypes[callee.Name][param.Name];
             }
             return node;
         }
@@ -106,8 +109,6 @@ namespace TraceTransformer
                         if (int.TryParse(procTypes[lhs.AsExpr.ToString()].ToString().Substring("bv".Length), out width))
                         {
                             newRhss[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Rhss[i].ToString()), width));
-                            //node.Rhss[i].Type = Microsoft.Boogie.Type.GetBvType(width);
-                            //Console.WriteLine("<==========>" + node.Rhss[i].Type.ToString());
                         }
                         else
                         {

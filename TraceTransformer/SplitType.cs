@@ -10,36 +10,36 @@ namespace TraceTransformer
     {
         Program prog;
         Procedure currProc;
-        Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>> expTypes;
+        Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> exprTypes;
         Dictionary<Procedure, List<List<string>>> typeConstraints;
         Dictionary<string, int> typeVar2Id;
         Dictionary<int, string> Id2TypeVar;
         List<string> bvOps;
         int idCounter;
-        Dictionary<Procedure, List<HashSet<string>>> typeSolutions;
+        List<HashSet<int>> solsInInt;
 
         public SplitType(Program prog)
         {
             this.prog = prog;
-            expTypes = new Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>>();
+            exprTypes = new Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>>();
             typeConstraints = new Dictionary<Procedure, List<List<string>>>();
             typeVar2Id = new Dictionary<string, int>();
             Id2TypeVar = new Dictionary<int, string>();
             idCounter = 0;
             bvOps = new List<string>() {"$and", "$or", "$lshr", "$shl", "$xor"};
-            this.typeSolutions = new Dictionary<Procedure, List<HashSet<string>>>();
         }
 
-        public Dictionary<Procedure, Dictionary<string, Microsoft.Boogie.Type>> getTypes()
+        public Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> getTypes()
         {
-            return expTypes;
+            return exprTypes;
         }
 
         public void Run()
         {
             generateConstraints();
             solveConstraints();
-            //showResultTypes();
+            updateExprTypes();
+            showUpdatedTypes();
         }
 
         public void generateConstraints()
@@ -143,9 +143,88 @@ namespace TraceTransformer
                 allCons.AddRange(newCons);
             }
             var ui = new Unifier(allCons);
-            var sol = ui.Unify();
+            solsInInt = ui.Unify();
             Console.WriteLine("========================solution========================");
-            sol.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+            solsInInt.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+        }
+
+        public void updateExprTypes()
+        {
+            foreach (var cons in solsInInt)
+            {
+                bool isBV = cons.Contains(-1);
+                foreach (var con in cons)
+                {
+                    if (con == -1)
+                        continue;
+                    var typeVar = id2Tv(con);
+                    var procName = getProcNameFromTypeVar(typeVar);
+                    var expr = getExprFromTypeVar(typeVar);
+                    if (!expr.Contains("."))
+                    {
+                        // this expr is a varaible
+                        Dictionary<string, Microsoft.Boogie.Type> typeMap;
+                        if (exprTypes.Keys.Contains(procName))
+                            typeMap = exprTypes[procName];
+                        else
+                        {
+                            typeMap = new Dictionary<string, Microsoft.Boogie.Type>();
+                            var p = prog.Procedures.Where(proc => proc.Name.Equals(procName)).First();
+                            foreach (var inP in p.InParams)
+                            {
+                                typeMap[inP.Name] = inP.TypedIdent.Type;
+                            }
+                            foreach (var outP in p.OutParams)
+                            {
+                                typeMap[outP.Name] = outP.TypedIdent.Type;
+                            }
+                            exprTypes[procName] = typeMap;
+                        }
+                        if (isBV && !typeMap[expr].IsBv)
+                        {
+                            typeMap[expr] = Microsoft.Boogie.Type.GetBvType(getIntWidth(typeMap[expr].ToString()));
+                        }
+                    }
+                    else
+                    {
+                        // this expr is a function application
+                        var typeMap = exprTypes[procName];
+                        if (isBV && (!typeMap.Keys.Contains(expr) || !typeMap[expr].IsBv))
+                        {
+                            var funcName = expr.Split('(')[0].Split('.')[0];
+                            string rt;
+                            int length;
+                            // ext/trunc functions
+                            if (funcName.Equals("$sext") || funcName.Equals("$zext") || funcName.Equals("$trunc"))
+                            {
+                                rt = expr.Split('(')[0].Split('.')[2];
+                                length = getIntWidth(rt);
+                            }
+                            else
+                            {
+                                rt = expr.Split('(')[0].Split('.')[1];
+                                length = getIntWidth(rt);
+                            }
+                            typeMap[expr] = Microsoft.Boogie.Type.GetBvType(length);
+                        }
+                        else
+                        {
+                            typeMap[expr] = Microsoft.Boogie.Type.Int;
+                        }
+                    }
+                }
+            }
+        }
+
+        public void showUpdatedTypes()
+        {
+            foreach (var item in exprTypes)
+            {
+                var procName = item.Key;
+                var typeMap = item.Value;
+                Console.WriteLine("**************************" + procName + "**************************");
+                typeMap.Iter(tm => Console.WriteLine(tm.Key + ": " + tm.Value.ToString()));
+            }
         }
 
         public string expr2TypeVar(Expr e, string proc)
@@ -164,6 +243,11 @@ namespace TraceTransformer
                 return tv;
             else
                 return tv.Split('-')[1];
+        }
+
+        public string getProcNameFromTypeVar(string tv)
+        {
+            return tv.Split('-')[0];
         }
 
         //public void solveConstraints()
@@ -334,81 +418,81 @@ namespace TraceTransformer
 
         //}
 
-        public void showResultTypes()
-        {
-            foreach (var item in typeSolutions)
-            {
-                var proc = item.Key;
-                var procSols = item.Value;
-                var types = expTypes[proc];
-                Console.WriteLine("************************************************************************");
-                foreach (var group in procSols)
-                {
-                    Console.WriteLine(string.Join(", ", group));
-                    bool bv = false;
-                    if (group.Contains("BV"))
-                        bv = true;
-                    foreach (var tc in group)
-                    {
-                        if (tc.Equals("BV"))
-                            continue;
-                        if (!tc.Contains("."))
-                        {
-                            // vars
-                            if (bv)
-                            {
-                                int length = getIntWidth(types[tc].ToString());
-                                if (length != -1)
-                                {
-                                    types[tc] = Microsoft.Boogie.Type.GetBvType(length);
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // exprs
-                            if (bv)
-                            {
-                                var funcName = tc.Split('(')[0].Split('.')[0];
-                                string rt;
-                                int length;
-                                // ext/trunc functions
-                                if (funcName.Equals("$sext") || funcName.Equals("$zext") || funcName.Equals("$trunc"))
-                                {
-                                    rt = tc.Split('(')[0].Split('.')[2];
-                                    length = getIntWidth(rt);
-                                }
-                                else
-                                {
-                                    rt = tc.Split('(')[0].Split('.')[1];
-                                    length = getIntWidth(rt);
-                                }
-                                if (length != -1)
-                                {
-                                    types[tc] = Microsoft.Boogie.Type.GetBvType(length);
-                                }
-                            }
-                            else
-                            {
-                                types[tc] = Microsoft.Boogie.Type.Int;
-                            }
-                        }
-                    }
-                }
-            }
-            foreach (var tuple in expTypes)
-            {
-                var types = tuple.Value;
-                var proc = tuple.Key;
-                Console.WriteLine("**********************************" + proc + "**************************************");
-                foreach (var item in types)
-                {
-                    var exp = item.Key;
-                    var ty = item.Value.ToString();
-                    Console.WriteLine(exp + ": " + ty);
-                }
-            }
-        }
+        //public void showResultTypes()
+        //{
+        //    foreach (var item in typeSolutions)
+        //    {
+        //        var proc = item.Key;
+        //        var procSols = item.Value;
+        //        var types = expTypes[proc];
+        //        Console.WriteLine("************************************************************************");
+        //        foreach (var group in procSols)
+        //        {
+        //            Console.WriteLine(string.Join(", ", group));
+        //            bool bv = false;
+        //            if (group.Contains("BV"))
+        //                bv = true;
+        //            foreach (var tc in group)
+        //            {
+        //                if (tc.Equals("BV"))
+        //                    continue;
+        //                if (!tc.Contains("."))
+        //                {
+        //                    // vars
+        //                    if (bv)
+        //                    {
+        //                        int length = getIntWidth(types[tc].ToString());
+        //                        if (length != -1)
+        //                        {
+        //                            types[tc] = Microsoft.Boogie.Type.GetBvType(length);
+        //                        }
+        //                    }
+        //                }
+        //                else
+        //                {
+        //                    // exprs
+        //                    if (bv)
+        //                    {
+        //                        var funcName = tc.Split('(')[0].Split('.')[0];
+        //                        string rt;
+        //                        int length;
+        //                        // ext/trunc functions
+        //                        if (funcName.Equals("$sext") || funcName.Equals("$zext") || funcName.Equals("$trunc"))
+        //                        {
+        //                            rt = tc.Split('(')[0].Split('.')[2];
+        //                            length = getIntWidth(rt);
+        //                        }
+        //                        else
+        //                        {
+        //                            rt = tc.Split('(')[0].Split('.')[1];
+        //                            length = getIntWidth(rt);
+        //                        }
+        //                        if (length != -1)
+        //                        {
+        //                            types[tc] = Microsoft.Boogie.Type.GetBvType(length);
+        //                        }
+        //                    }
+        //                    else
+        //                    {
+        //                        types[tc] = Microsoft.Boogie.Type.Int;
+        //                    }
+        //                }
+        //            }
+        //        }
+        //    }
+        //    foreach (var tuple in expTypes)
+        //    {
+        //        var types = tuple.Value;
+        //        var proc = tuple.Key;
+        //        Console.WriteLine("**********************************" + proc + "**************************************");
+        //        foreach (var item in types)
+        //        {
+        //            var exp = item.Key;
+        //            var ty = item.Value.ToString();
+        //            Console.WriteLine(exp + ": " + ty);
+        //        }
+        //    }
+        //}
 
         public bool isNumber(string e)
         {
@@ -432,7 +516,7 @@ namespace TraceTransformer
         public override Implementation VisitImplementation(Implementation node)
         {
             Dictionary<string, Microsoft.Boogie.Type> varInitTypes = new Dictionary<string, Microsoft.Boogie.Type>();
-            expTypes[node.Proc] = varInitTypes;
+            exprTypes[node.Proc.Name] = varInitTypes;
             currProc = node.Proc;
             typeConstraints[currProc] = new List<List<string>>();
             foreach (var varDecl in node.LocVars)
