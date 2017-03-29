@@ -17,10 +17,8 @@ namespace TraceTransformer
             CommandLineOptions.Clo.DoModSetAnalysis = true;
 
             var program = BoogieUtil.ReadAndResolve(args[0], false);
-            var ci = new ConstantInliner(program);
-            ci.Inline();
-            var fk = new ForkProcsWithoutImpls(program);
-            fk.Fork();
+            var pre = new Preprocess(program);
+            program = pre.Run();
             var st = new SplitType(program);
             st.Run();
             var rw = new Rewritter(program, st.getTypes(), args[1]);

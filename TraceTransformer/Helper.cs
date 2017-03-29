@@ -2,6 +2,7 @@
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Boogie;
+using cba.Util;
 
 namespace TraceTransformer
 {
@@ -96,6 +97,25 @@ namespace TraceTransformer
                 counters[callee] += 1;
             }
             return node;
+        }
+    }
+
+    public class Preprocess
+    {
+        Program prog;
+
+        public Preprocess(Program prog)
+        {
+            this.prog = prog;
+        }
+
+        public Program Run()
+        {
+            var ci = new ConstantInliner(prog);
+            ci.Inline();
+            var fk = new ForkProcsWithoutImpls(prog);
+            fk.Fork();
+            return BoogieUtil.ReResolveInMem(prog);
         }
     }
 }
