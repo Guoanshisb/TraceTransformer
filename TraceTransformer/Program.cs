@@ -18,6 +18,18 @@ namespace TraceTransformer
 
             var program = BoogieUtil.ReadAndResolve(args[0], false);
             var pre = new Preprocess(program);
+            if (args.Any(arg => arg.Equals("/diagnose")))
+            {
+                var dg = new Diagnoser(program);
+                dg.Diagnose();
+                return;
+            }
+            else if (args.Any(arg => arg.Equals("/preprocess")))
+            {
+                pre.Run();
+                BoogieUtil.PrintProgram(program, "temp.bpl");
+                return;
+            }
             program = pre.Run();
             var st = new SplitType(program);
             st.Run();
