@@ -12,12 +12,14 @@ namespace TraceTransformer
         Program prog;
         string outputProg;
         Dictionary<string, Microsoft.Boogie.Type> procTypes;
+        HashSet<string> globals;
 
         public Rewritter(Program prog, Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> expTypes, string outputProg)
         {
             this.prog = prog;
             this.expTypes = expTypes;
             this.outputProg = outputProg;
+            globals = new HashSet<string>(prog.Variables.Select(g => g.Name));
         }
 
         public void Rewrite()
@@ -31,6 +33,10 @@ namespace TraceTransformer
                     continue;
                 else
                     RewriteImpl(impls.First(), types);
+            }
+            foreach (var g in prog.Variables)
+            {
+                g.TypedIdent.Type = expTypes["$TTGlobal"][g.Name];
             }
             BoogieUtil.PrintProgram(prog, outputProg);
 
@@ -103,10 +109,11 @@ namespace TraceTransformer
                 newRhss.Add(rhs);
                 if (rhs is LiteralExpr && (rhs as LiteralExpr).isBigNum)
                 {
-                    if (procTypes[lhs.AsExpr.ToString()].ToString().Contains("bv"))
+                    Console.WriteLine(lhs.AsExpr.ToString());
+                    if (getType(lhs.AsExpr.ToString()).ToString().Contains("bv"))
                     {
                         int width;
-                        if (int.TryParse(procTypes[lhs.AsExpr.ToString()].ToString().Substring("bv".Length), out width))
+                        if (int.TryParse(getType(lhs.AsExpr.ToString()).ToString().Substring("bv".Length), out width))
                         {
                             newRhss[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Rhss[i].ToString()), width));
                         }
@@ -136,10 +143,10 @@ namespace TraceTransformer
                     }
                     if (node.Args[noLit] is LiteralExpr)
                         return node;
-                    if (!procTypes[node.Args[noLit].ToString()].ToString().Contains("bv"))
+                    if (!getType(node.Args[noLit].ToString()).ToString().Contains("bv"))
                         return node;
                     int width;
-                    if (int.TryParse(procTypes[node.Args[noLit].ToString()].ToString().Substring("bv".Length), out width))
+                    if (int.TryParse(getType(node.Args[noLit].ToString()).ToString().Substring("bv".Length), out width))
                     {
                         node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Args[lit].ToString()), width);
                     }
@@ -153,7 +160,7 @@ namespace TraceTransformer
             }
             else if (node.Fun.FunctionName.Contains("$"))
             {
-                bool bv = procTypes[node.ToString()].ToString().Contains("bv");
+                bool bv = getType(node.ToString()).ToString().Contains("bv");
                 if (!bv)
                     return node;
                 var funcName = node.Fun.FunctionName.Split('(')[0];
@@ -186,6 +193,14 @@ namespace TraceTransformer
             }
 
             return base.VisitNAryExpr(node);
+        }
+
+        public Microsoft.Boogie.Type getType(string e)
+        {
+            if (globals.Contains(e))
+                return expTypes["$TTGlobal"][e];
+            else
+                return procTypes[e];
         }
     }
 }

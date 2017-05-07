@@ -17,6 +17,8 @@ namespace TraceTransformer
         List<string> bvOps;
         int idCounter;
         List<HashSet<int>> solsInInt;
+        HashSet<string> globals;
+        string fakeGlobalProc;
 
         public SplitType(Program prog)
         {
@@ -27,6 +29,10 @@ namespace TraceTransformer
             Id2TypeVar = new Dictionary<int, string>();
             idCounter = 0;
             bvOps = new List<string>() {"$and", "$or", "$lshr", "$shl", "$xor"};
+            globals = new HashSet<string>(prog.Variables.Select(v => v.Name));
+            fakeGlobalProc = "$TTGlobal";
+            exprTypes[fakeGlobalProc] = new Dictionary<string, Microsoft.Boogie.Type>();
+            prog.Variables.Iter(g => exprTypes[fakeGlobalProc][g.Name] = g.TypedIdent.Type);
         }
 
         public Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> getTypes()
@@ -47,10 +53,7 @@ namespace TraceTransformer
             //VisitImplementation(sol);
             foreach (var impl in prog.TopLevelDeclarations.OfType<Implementation>())
             {
-                if (impl.InParams.Count == 0 && impl.OutParams.Count == 0)
-                    continue;
-                else
-                    VisitImplementation(impl);
+                VisitImplementation(impl);
             }
             //typeConstraints.Iter(item => printContraints(item.Key));
         }
@@ -160,7 +163,7 @@ namespace TraceTransformer
                     var typeVar = id2Tv(con);
                     var procName = getProcNameFromTypeVar(typeVar);
                     var expr = getExprFromTypeVar(typeVar);
-                    if (!expr.Contains("."))
+                    if (!expr.Contains(".") || globals.Contains(expr))
                     {
                         // this expr is a varaible
                         Dictionary<string, Microsoft.Boogie.Type> typeMap;
@@ -234,7 +237,10 @@ namespace TraceTransformer
 
         public string expr2TypeVar(string e, string proc)
         {
-            return proc + "-" + e;
+            if (globals.Contains(e))
+                return fakeGlobalProc + "-" + e;
+            else
+                return proc + "-" + e;
         }
 
         public string getExprFromTypeVar(string tv)
@@ -249,250 +255,6 @@ namespace TraceTransformer
         {
             return tv.Split('-')[0];
         }
-
-        //public void solveConstraints()
-        //{
-        //    foreach (var item in typeConstraints)
-        //    {
-        //        var procCons = item.Value;
-        //        var proc = item.Key;
-        //        var procSolutions = new List<HashSet<string>>();
-        //        typeSolutions[proc] = procSolutions;
-
-        //        Func<string, int> findSet = delegate (string t)
-        //        {
-        //            for (int i = 0; i < procSolutions.Count; ++i)
-        //            {
-        //                if (procSolutions[i].Equals("BV"))
-        //                    continue;
-        //                if (procSolutions[i].Contains(t))
-        //                    return i;
-        //            }
-        //            return -1;
-        //        };
-
-        //        foreach (var singleCons in procCons)
-        //        {
-        //            double n;
-        //            if (singleCons.Count == 2 && singleCons.Any(cons => double.TryParse(cons, out n)))
-        //                continue;
-        //            Dictionary<string, int> groupId = new Dictionary<string, int>();
-        //            foreach (var tc in singleCons)
-        //            {
-        //                if (!tc.Equals("BV"))
-        //                    groupId[tc] = findSet(tc);
-        //            }
-
-        //            // create a group needed
-        //            if (groupId.Values.All(id => id == -1))
-        //            {
-        //                var group = new HashSet<string>();
-        //                procSolutions.Add(group);
-        //                foreach (var tc in singleCons)
-        //                {
-        //                    if (double.TryParse(tc, out n))
-        //                        continue;
-        //                    else
-        //                        group.Add(tc);
-        //                }
-        //            }
-        //            else
-        //            {
-        //                HashSet<int> ids = new HashSet<int>(groupId.Values.Where(id => id != -1));
-        //                if (ids.Count == 1)
-        //                {
-        //                    var group = procSolutions.ElementAt(ids.First());
-        //                    foreach (var tc in singleCons)
-        //                    {
-        //                        if (double.TryParse(tc, out n))
-        //                            continue;
-        //                        else
-        //                            group.Add(tc);
-        //                    }
-        //                }
-        //                else
-        //                {
-        //                    // merge lists
-        //                    HashSet<string> merged = new HashSet<string>();
-        //                    List<HashSet<string>> newList = new List<HashSet<string>>();
-        //                    foreach (var id in ids)
-        //                    {
-        //                        merged.UnionWith(new HashSet<string>(procSolutions.ElementAt(id)));
-        //                    }
-        //                    foreach (var tc in singleCons)
-        //                    {
-        //                        if (double.TryParse(tc, out n))
-        //                            continue;
-        //                        else
-        //                            merged.Add(tc);
-        //                    }
-        //                    for (int i = 0; i < procSolutions.Count; ++i)
-        //                    {
-        //                        if (!ids.Contains(i))
-        //                            newList.Add(new HashSet<string>(procSolutions.ElementAt(i)));
-        //                    }
-        //                    newList.Add(merged);
-        //                    procSolutions = newList;
-        //                    typeSolutions[proc] = procSolutions;
-        //                }
-        //            }
-        //        }
-        //    }
-        //    // find if param/return is bv
-        //    HashSet<string> bvParams = new HashSet<string>();
-        //    HashSet<string> oldBvParams = new HashSet<string>();
-
-        //    do
-        //    {
-        //        oldBvParams = new HashSet<string>(bvParams);
-        //        foreach (var item in typeSolutions)
-        //        {
-        //            var proc = item.Key;
-        //            var types = item.Value;
-        //            foreach (var tc in types)
-        //            {
-        //                var ios = tc.Where(t => t.Contains('_'));
-        //                if (ios.Count() == 0)
-        //                    continue;
-        //                else
-        //                {
-        //                    if (tc.Contains("BV"))
-        //                    {
-        //                        bvParams.UnionWith(ios);
-        //                    }
-        //                    else
-        //                    {
-        //                        continue;
-        //                    }
-        //                }
-        //            }
-        //        }
-        //        // update the solution
-        //        foreach (var item in typeSolutions)
-        //        {
-        //            var proc = item.Key;
-        //            var types = item.Value;
-        //            HashSet<string> bvIns = new HashSet<string>();
-        //            HashSet<string> bvOuts = new HashSet<string>();
-
-        //            foreach (var inP in proc.InParams)
-        //            {
-        //                if (bvParams.Contains(proc.Name + "_" + inP.Name))
-        //                    bvIns.Add(inP.Name);
-        //            }
-
-        //            foreach (var outP in proc.OutParams)
-        //            {
-        //                if (bvParams.Contains(proc.Name + "_" + outP.Name))
-        //                    bvOuts.Add(outP.Name);
-        //            }
-
-        //            foreach (var tc in types)
-        //            {
-        //                if (tc.Any(t => bvParams.Contains(t) || bvIns.Contains(t) || bvOuts.Contains(t)))
-        //                    tc.Add("BV");
-        //            }
-        //            var bvEs = new HashSet<string>();
-        //            //bvEs.UnionWith(bvParams);
-        //            bvEs.UnionWith(bvIns);
-        //            bvEs.UnionWith(bvOuts);
-
-        //            foreach (var bvE in bvEs)
-        //            {
-        //                bool has = false;
-        //                foreach (var tc in types)
-        //                {
-        //                    if (tc.Any(t => bvEs.Contains(t)))
-        //                    {
-        //                        //tc.Add("BV");
-        //                        has = true;
-        //                    }
-        //                }
-        //                if (!has)
-        //                {
-        //                    types.Add(new HashSet<string>() { bvE, "BV" });
-        //                }
-        //            }
-        //        }               
-        //    } while (!bvParams.SetEquals(oldBvParams));
-
-        //}
-
-        //public void showResultTypes()
-        //{
-        //    foreach (var item in typeSolutions)
-        //    {
-        //        var proc = item.Key;
-        //        var procSols = item.Value;
-        //        var types = expTypes[proc];
-        //        Console.WriteLine("************************************************************************");
-        //        foreach (var group in procSols)
-        //        {
-        //            Console.WriteLine(string.Join(", ", group));
-        //            bool bv = false;
-        //            if (group.Contains("BV"))
-        //                bv = true;
-        //            foreach (var tc in group)
-        //            {
-        //                if (tc.Equals("BV"))
-        //                    continue;
-        //                if (!tc.Contains("."))
-        //                {
-        //                    // vars
-        //                    if (bv)
-        //                    {
-        //                        int length = getIntWidth(types[tc].ToString());
-        //                        if (length != -1)
-        //                        {
-        //                            types[tc] = Microsoft.Boogie.Type.GetBvType(length);
-        //                        }
-        //                    }
-        //                }
-        //                else
-        //                {
-        //                    // exprs
-        //                    if (bv)
-        //                    {
-        //                        var funcName = tc.Split('(')[0].Split('.')[0];
-        //                        string rt;
-        //                        int length;
-        //                        // ext/trunc functions
-        //                        if (funcName.Equals("$sext") || funcName.Equals("$zext") || funcName.Equals("$trunc"))
-        //                        {
-        //                            rt = tc.Split('(')[0].Split('.')[2];
-        //                            length = getIntWidth(rt);
-        //                        }
-        //                        else
-        //                        {
-        //                            rt = tc.Split('(')[0].Split('.')[1];
-        //                            length = getIntWidth(rt);
-        //                        }
-        //                        if (length != -1)
-        //                        {
-        //                            types[tc] = Microsoft.Boogie.Type.GetBvType(length);
-        //                        }
-        //                    }
-        //                    else
-        //                    {
-        //                        types[tc] = Microsoft.Boogie.Type.Int;
-        //                    }
-        //                }
-        //            }
-        //        }
-        //    }
-        //    foreach (var tuple in expTypes)
-        //    {
-        //        var types = tuple.Value;
-        //        var proc = tuple.Key;
-        //        Console.WriteLine("**********************************" + proc + "**************************************");
-        //        foreach (var item in types)
-        //        {
-        //            var exp = item.Key;
-        //            var ty = item.Value.ToString();
-        //            Console.WriteLine(exp + ": " + ty);
-        //        }
-        //    }
-        //}
 
         public bool isNumber(string e)
         {

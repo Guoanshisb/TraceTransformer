@@ -410,16 +410,16 @@ namespace TraceTransformer
 
         public Program Run()
         {
-            //var ci = new ConstantInliner(prog);
-            //ci.Inline();
-            //var fk = new ForkProcsWithoutImpls(prog);
-            //fk.Fork();
-            //return BoogieUtil.ReResolveInMem(prog);
-            var inl = new InlineFunctionCalls(prog);
-            inl.Inline();
-            var meg = new MergeAssignments(prog);
-            meg.Merge();
-            return prog;
+            var ci = new ConstantInliner(prog);
+            ci.Inline();
+            var fk = new ForkProcsWithoutImpls(prog);
+            fk.Fork();
+            return BoogieUtil.ReResolveInMem(prog);
+            //var inl = new InlineFunctionCalls(prog);
+            //inl.Inline();
+            //var meg = new MergeAssignments(prog);
+            //meg.Merge();
+            //return prog;
         }
     }
 }
