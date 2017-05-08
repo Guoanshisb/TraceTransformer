@@ -160,7 +160,15 @@ namespace TraceTransformer
             }
             else if (node.Fun.FunctionName.Contains("$"))
             {
-                bool bv = getType(node.ToString()).ToString().Contains("bv");
+                bool bv = false;
+                if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
+                {
+                    bv = getType(node.Args[0].ToString()).AsMap.Result.IsBv;
+                }
+                else
+                {
+                    bv = getType(node.ToString()).ToString().Contains("bv");
+                }
                 if (!bv)
                     return node;
                 var funcName = node.Fun.FunctionName.Split('(')[0];

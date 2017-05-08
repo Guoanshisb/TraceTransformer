@@ -45,7 +45,7 @@ namespace TraceTransformer
             generateConstraints();
             solveConstraints();
             updateExprTypes();
-            //showUpdatedTypes();
+            showUpdatedTypes();
         }
 
         public void generateConstraints()
@@ -188,6 +188,20 @@ namespace TraceTransformer
                             typeMap[expr] = Microsoft.Boogie.Type.GetBvType(getIntWidth(typeMap[expr].ToString()));
                         }
                     }
+                    else if (expr.StartsWith("$M."))
+                    {
+                        var map = expr.Split('_')[0];
+                        var snd = expr.Split('_')[1];
+                        var typeMap = exprTypes[procName];
+                        // TODO: check unaligned access
+                        if (snd.Equals("val"))
+                        {
+                            if (isBV && !typeMap[map].AsMap.Result.IsBv)
+                            {
+                                typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(32);
+                            }
+                        }
+                    }
                     else
                     {
                         // this expr is a function application
@@ -230,14 +244,14 @@ namespace TraceTransformer
             }
         }
 
-        public string expr2TypeVar(Expr e, string proc)
+        public string expr2TypeVar(Expr e, string proc, bool isGlobal = false)
         {
-            return expr2TypeVar(e.ToString(), proc);
+            return expr2TypeVar(e.ToString(), proc, isGlobal);
         }
 
-        public string expr2TypeVar(string e, string proc)
+        public string expr2TypeVar(string e, string proc, bool isGlobal = false)
         {
-            if (globals.Contains(e))
+            if (globals.Contains(e) || isGlobal)
                 return fakeGlobalProc + "-" + e;
             else
                 return proc + "-" + e;
@@ -304,9 +318,43 @@ namespace TraceTransformer
             {
                 var lhs = assign.Item1;
                 var rhs = assign.Item2;
-                typeConstraints[currProc].Add(new List<string>() {  expr2TypeVar(lhs.AsExpr, currProc.Name), expr2TypeVar(rhs, currProc.Name) });
+                if (rhs is NAryExpr && (rhs as NAryExpr).Fun.FunctionName.StartsWith("$load"))
+                {
+                    var loadFunc = rhs as NAryExpr;
+                    var map = loadFunc.Args[0];
+                    var ptr = loadFunc.Args[1];
+                    var val = lhs.AsExpr;
+                    // v := M[p]
+                    // ---------
+                    // v <-> M_val
+                    // p <-> M_ptr
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name) });
+                    VisitExpr(ptr);
+                    VisitExpr(val);
+                }
+                else if (rhs is NAryExpr && (rhs as NAryExpr).Fun.FunctionName.StartsWith("$store"))
+                {
+                    var storeFunc = rhs as NAryExpr;
+                    var map = storeFunc.Args[0];
+                    var ptr = storeFunc.Args[1];
+                    var val = storeFunc.Args[2];
+                    // M := M[p := v]
+                    // --------------
+                    // v <-> M_val
+                    // p <-> M_ptr
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name) });
+                    VisitExpr(ptr);
+                    VisitExpr(val);
+                }
+                else
+                {
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(lhs.AsExpr, currProc.Name), expr2TypeVar(rhs, currProc.Name) });
+                    VisitExpr(rhs);
+                }
                 VisitExpr(lhs.AsExpr);
-                VisitExpr(rhs);
+
             }
             return node;
         }
