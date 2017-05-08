@@ -19,8 +19,9 @@ namespace TraceTransformer
         List<HashSet<int>> solsInInt;
         HashSet<string> globals;
         string fakeGlobalProc;
+        Dictionary<string, int> mapSizes;
 
-        public SplitType(Program prog)
+        public SplitType(Program prog, Dictionary<string, int> mapSizes)
         {
             this.prog = prog;
             exprTypes = new Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>>();
@@ -33,6 +34,7 @@ namespace TraceTransformer
             fakeGlobalProc = "$TTGlobal";
             exprTypes[fakeGlobalProc] = new Dictionary<string, Microsoft.Boogie.Type>();
             prog.Variables.Iter(g => exprTypes[fakeGlobalProc][g.Name] = g.TypedIdent.Type);
+            this.mapSizes = mapSizes;
         }
 
         public Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> getTypes()
@@ -45,7 +47,7 @@ namespace TraceTransformer
             generateConstraints();
             solveConstraints();
             updateExprTypes();
-            showUpdatedTypes();
+            //showUpdatedTypes();
         }
 
         public void generateConstraints()
@@ -198,7 +200,11 @@ namespace TraceTransformer
                         {
                             if (isBV && !typeMap[map].AsMap.Result.IsBv)
                             {
-                                typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(32);
+                                var size = mapSizes[map];
+                                if (size == -1)
+                                    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(8);
+                                else
+                                    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(size);
                             }
                         }
                     }

@@ -26,6 +26,11 @@ public class Diagnoser : StandardVisitor
         }
     }
 
+    public Dictionary<string, int> getMapSizes()
+    {
+        return mapSizes;
+    }
+
     public void Diagnose()
     {
         prog.Implementations.Iter(impl => VisitImplementation(impl));
@@ -36,6 +41,10 @@ public class Diagnoser : StandardVisitor
             if (size == -1)
             {
                 Console.WriteLine("Need byte precise: " + map);
+            }
+            else if (size == -2)
+            {
+                Console.WriteLine("Only pointers are stored in map: " + map);
             }
         }
     }
@@ -59,28 +68,32 @@ public class Diagnoser : StandardVisitor
         }
         if (isLoadStore(node.Fun.FunctionName))
         {
-            if (node.Fun.FunctionName.Split('.')[1].StartsWith("i"))
+            int width;
+            if (node.Fun.FunctionName.Contains("ref"))
+                width = -2;
+            else
             {
-                int width;
                 if (int.TryParse(node.Fun.FunctionName.Split('.')[1].Split('i')[1], out width))
                 {
-                    var map = node.Args.Where(arg => mapSizes.Keys.Contains(arg.ToString())).First().ToString();
-                    var size = mapSizes[map];
-                    if (size == 0)
-                    {
-                        mapSizes[map] = width;
-                    }
-                    else
-                    {
-                        if (size != width)
-                        {
-                            mapSizes[map] = -1;
-                        }
-                    }
+                    // pass
                 }
                 else
                 {
                     Console.WriteLine("Cannot parse int: " + node.Fun.FunctionName.Split('.')[1].Split('i')[1]);
+                    return base.VisitNAryExpr(node);
+                }
+            }
+            var map = node.Args.Where(arg => mapSizes.Keys.Contains(arg.ToString())).First().ToString();
+            var size = mapSizes[map];
+            if (size == 0)
+            {
+                mapSizes[map] = width;
+            }
+            else
+            {
+                if (size != width)
+                {
+                    mapSizes[map] = -1;
                 }
             }
         }

@@ -109,7 +109,6 @@ namespace TraceTransformer
                 newRhss.Add(rhs);
                 if (rhs is LiteralExpr && (rhs as LiteralExpr).isBigNum)
                 {
-                    Console.WriteLine(lhs.AsExpr.ToString());
                     if (getType(lhs.AsExpr.ToString()).ToString().Contains("bv"))
                     {
                         int width;
@@ -193,6 +192,20 @@ namespace TraceTransformer
 
                 // build a bv expression
                 var bvFuncName = string.Join(".", funcName.Split('.').Select(elem => !elem.Contains("$") ? "bv" + elem.Substring("i".Length) : elem));
+                if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
+                {
+                    var mapSize = getType(node.Args[0].ToString()).AsMap.Result.BvBits;
+                    int opSize;
+                    if (int.TryParse(inputType.Substring("i".Length), out opSize))
+                    {
+                        if (mapSize != opSize)
+                            bvFuncName = bvFuncName.Split('.')[0] + ".bytes." + bvFuncName.Split('.')[1];
+                    }
+                    else
+                    {
+                        Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                    }
+                }
                 node = new NAryExpr(Token.NoToken, new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(func => func.Name.Equals(bvFuncName)).FirstOrDefault()), node.Args);
                 //node.Args.Iter(se => VisitExpr(se));
                 for (int i = 0; i < node.Args.Count; ++i)
