@@ -17,9 +17,12 @@ namespace TraceTransformer
         List<string> bvOps;
         int idCounter;
         List<HashSet<int>> solsInInt;
+        List<HashSet<string>> solsInTv;
         HashSet<string> globals;
         string fakeGlobalProc;
         Dictionary<string, int> mapSizes;
+        bool considerBv;
+        Dictionary<string, Implementation> implsByName;
 
         public SplitType(Program prog, Dictionary<string, int> mapSizes)
         {
@@ -28,6 +31,7 @@ namespace TraceTransformer
             typeConstraints = new Dictionary<Procedure, List<List<string>>>();
             typeVar2Id = new Dictionary<string, int>();
             Id2TypeVar = new Dictionary<int, string>();
+            solsInTv = new List<HashSet<string>>();
             idCounter = 0;
             bvOps = new List<string>() {"$and", "$or", "$lshr", "$shl", "$xor"};
             globals = new HashSet<string>(prog.Variables.Select(v => v.Name));
@@ -35,6 +39,9 @@ namespace TraceTransformer
             exprTypes[fakeGlobalProc] = new Dictionary<string, Microsoft.Boogie.Type>();
             prog.Variables.Iter(g => exprTypes[fakeGlobalProc][g.Name] = g.TypedIdent.Type);
             this.mapSizes = mapSizes;
+            considerBv = true;
+            implsByName = new Dictionary<string, Implementation>();
+            prog.Implementations.Iter(impl => implsByName[impl.Name] = impl);
         }
 
         public Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> getTypes()
@@ -48,6 +55,93 @@ namespace TraceTransformer
             solveConstraints();
             updateExprTypes();
             //showUpdatedTypes();
+        }
+
+        public void Solve()
+        {
+            considerBv = false;
+            generateConstraints();
+            solveConstraints();
+            foreach (var equiv in solsInInt)
+            {
+                var tvs = new HashSet<string>();
+                equiv.Iter(i => tvs.Add(id2Tv(i)));
+                solsInTv.Add(tvs);
+            }
+        }
+
+        public List<HashSet<string>> getSolsInTv()
+        {
+            return solsInTv;
+        }
+
+        public List<HashSet<string>> getSolsInTvFromSolsInInt()
+        {
+            foreach (var equiv in solsInInt)
+            {
+                var tvs = new HashSet<string>();
+                equiv.Iter(i => tvs.Add(id2Tv(i)));
+                solsInTv.Add(tvs);
+            }
+            //return solsInTv;
+            var ret = new List<HashSet<string>>();
+            foreach (var equiv in solsInTv)
+            {
+                var newEquiv = new HashSet<string>();
+                foreach (var item in equiv)
+                {
+                    var proc = getProcNameFromTypeVar(item);
+                    var expr = getExprFromTypeVar(item);
+                    if (implsByName.Keys.Contains(proc))
+                    {
+                        var origProc = implsByName[proc].FindStringAttribute("origRTname");
+                        newEquiv.Add(expr2TypeVar(expr, origProc));
+                    }
+                    else
+                    {
+                        newEquiv.Add(item);
+                    }
+                }
+                ret.Add(newEquiv);
+            }
+            return ret;
+        }
+
+        public void Merge(List<HashSet<string>> New)
+        {
+            foreach (var equiv in New)
+            {
+                if (equiv.Contains("BV"))
+                {
+                    foreach (var oldEquiv in solsInTv)
+                    {
+                        if (oldEquiv.Contains("BV"))
+                            continue;
+
+                        var intersec = oldEquiv.Intersect(equiv);
+                        if (intersec.Count() > 0)
+                            oldEquiv.Add("BV");
+                    }
+                }
+            }
+        }
+
+        public void updateSolsInInt()
+        {
+            foreach (var solInTy in solsInTv)
+            {
+                var first = tv2Id(solInTy.First());
+                if (solInTy.Contains("BV"))
+                {
+                    foreach (var solInInt in solsInInt)
+                    {
+                        if (solInInt.Contains(first))
+                            solInInt.Add(-1);
+                        else
+                            continue;
+                    }
+                }
+            }
         }
 
         public void generateConstraints()
@@ -418,7 +512,7 @@ namespace TraceTransformer
             if (node is NAryExpr)
             {
                 var e = node as NAryExpr;
-                if (bvOps.Contains(e.Fun.FunctionName.Split('.')[0]) && !e.Fun.FunctionName.Split('.')[1].Equals("i1"))
+                if (considerBv && bvOps.Contains(e.Fun.FunctionName.Split('.')[0]) && !e.Fun.FunctionName.Split('.')[1].Equals("i1"))
                 {
                     foreach (var arg in e.Args)
                     {
