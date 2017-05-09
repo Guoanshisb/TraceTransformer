@@ -77,6 +77,7 @@ namespace TraceTransformer
         public override Cmd VisitCallCmd(CallCmd node)
         {
             Procedure callee = prog.TopLevelDeclarations.OfType<Procedure>().Where(p => p.Name.Equals(node.callee)).FirstOrDefault();
+            Implementation impl = prog.Implementations.Any(i => i.Name.Equals(callee.Name)) ? prog.Implementations.Where(i => i.Name.Equals(callee.Name)).First() : null;
             foreach (var pair in node.Ins.Zip(callee.InParams))
             {
                 var arg = pair.Item1;
@@ -86,15 +87,69 @@ namespace TraceTransformer
                 //{
                 //    param.TypedIdent.Type = procTypes[callee.Name + "_" + param.Name];
                 //}
-                if (expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                if (param.TypedIdent.Type.IsMap)
+                {
+                    var argType = getType(arg.ToString());
+                    if (!argType.ToString().Equals(param.TypedIdent.Type.ToString()))
+                    {
+                        param.TypedIdent.Type = argType;
+                    }
+                } else if (expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
                     param.TypedIdent.Type = expTypes[callee.Name][param.Name];
             }
+            List<Expr> newIns = new List<Expr>();
+            for (int i = 0; i < node.Ins.Count; ++i)
+            {
+                var arg = node.Ins[i];
+                var param = callee.InParams[i];
+                newIns.Add(arg);
+                if (arg is LiteralExpr && (arg as LiteralExpr).isBigNum)
+                {
+                    if (expTypes.Keys.Contains(callee.Name) && expTypes[callee.Name][param.Name].ToString().Contains("bv"))
+                    {
+                        int width;
+                        if (int.TryParse(expTypes[callee.Name][param.Name].ToString().ToString().Substring("bv".Length), out width))
+                        {
+                            newIns[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width));
+                        }
+                        else
+                        {
+                            Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                        }
+                    }
+                }
+            }
+            node.Ins = newIns;
             foreach (var pair in node.Outs.Zip(callee.OutParams))
             {
                 var arg = pair.Item1;
                 var param = pair.Item2;
-                if (expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                if (param.TypedIdent.Type.IsMap)
+                {
+                    var argType = getType(arg.ToString());
+                    if (!argType.ToString().Equals(param.TypedIdent.Type.ToString()))
+                    {
+                        param.TypedIdent.Type = argType;
+                    }
+                } else if (expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
                     param.TypedIdent.Type = expTypes[callee.Name][param.Name];
+            }
+            if (impl != null)
+            {
+                foreach (var pair in callee.InParams.Zip(impl.InParams))
+                {
+                    var procParam = pair.Item1;
+                    var implParam = pair.Item2;
+                    if (!procParam.TypedIdent.Type.ToString().Equals(implParam.TypedIdent.Type.ToString()))
+                        implParam.TypedIdent.Type = procParam.TypedIdent.Type;
+                }
+                foreach (var pair in callee.OutParams.Zip(impl.OutParams))
+                {
+                    var procParam = pair.Item1;
+                    var implParam = pair.Item2;
+                    if (!procParam.TypedIdent.Type.ToString().Equals(implParam.TypedIdent.Type.ToString()))
+                        implParam.TypedIdent.Type = procParam.TypedIdent.Type;
+                }
             }
             return node;
         }

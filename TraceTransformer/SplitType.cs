@@ -165,7 +165,38 @@ namespace TraceTransformer
                     var typeVar = id2Tv(con);
                     var procName = getProcNameFromTypeVar(typeVar);
                     var expr = getExprFromTypeVar(typeVar);
-                    if (!expr.Contains(".") || globals.Contains(expr))
+                    if (expr.Contains("[") && expr.Contains("]"))
+                    {
+                        // pass
+                    }
+                    else if (expr.StartsWith("$M."))
+                    {
+                        var map = expr.Split('_')[0];
+                        var snd = expr.Split('_')[1];
+                        var typeMap = exprTypes[procName];
+                        // TODO: check unaligned access
+                        if (snd.Equals("val"))
+                        {
+                            if (isBV && !typeMap[map].AsMap.Result.IsBv)
+                            {
+                                //var size = mapSizes[map];
+                                //if (size == -1)
+                                //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(8);
+                                //else
+                                //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(size);
+                                typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(getIntWidth(typeMap[map].AsMap.Result.ToString()));
+                            }
+                        }
+                    }
+                    else if (expr.Contains("_ptr"))
+                    {
+                        // pass
+                    }
+                    else if (expr.Contains("_val"))
+                    {
+                        // pass
+                    }
+                    else if (!expr.Contains(".") || globals.Contains(expr))
                     {
                         // this expr is a varaible
                         Dictionary<string, Microsoft.Boogie.Type> typeMap;
@@ -188,24 +219,6 @@ namespace TraceTransformer
                         if (isBV && !typeMap[expr].IsBv)
                         {
                             typeMap[expr] = Microsoft.Boogie.Type.GetBvType(getIntWidth(typeMap[expr].ToString()));
-                        }
-                    }
-                    else if (expr.StartsWith("$M."))
-                    {
-                        var map = expr.Split('_')[0];
-                        var snd = expr.Split('_')[1];
-                        var typeMap = exprTypes[procName];
-                        // TODO: check unaligned access
-                        if (snd.Equals("val"))
-                        {
-                            if (isBV && !typeMap[map].AsMap.Result.IsBv)
-                            {
-                                var size = mapSizes[map];
-                                if (size == -1)
-                                    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(8);
-                                else
-                                    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(size);
-                            }
                         }
                     }
                     else
@@ -373,13 +386,29 @@ namespace TraceTransformer
             {
                 var arg = pair.Item1;
                 var param = pair.Item2;
-                typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), expr2TypeVar(param.Name, callee.Name) });
+                if (param.TypedIdent.Type.IsMap)
+                {
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(param.Name + "_ptr", callee.Name) });
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg.ToString() + "_val", currProc.Name, true), expr2TypeVar(param.Name + "_val", callee.Name) });
+                }
+                else
+                {
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), expr2TypeVar(param.Name, callee.Name) });
+                }
             }
             foreach (var pair in node.Outs.Zip(callee.OutParams))
             {
                 var cRet = pair.Item1;
                 var pRet = pair.Item2;
-                typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(cRet, currProc.Name), expr2TypeVar(pRet.Name, callee.Name) });
+                if (pRet.TypedIdent.Type.IsMap)
+                {
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(cRet.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(pRet.Name + "_ptr", callee.Name) });
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(cRet.ToString() + "_val", currProc.Name, true), expr2TypeVar(pRet.Name + "_val", callee.Name) });
+                }
+                else
+                {
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(cRet, currProc.Name), expr2TypeVar(pRet.Name, callee.Name) });
+                }
             }
             return base.VisitCallCmd(node);
         }
@@ -397,7 +426,7 @@ namespace TraceTransformer
                     }
                     typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(e, currProc.Name), "BV" });
                 }
-                else if (e.Fun.FunctionName.Equals("!"))
+                else if (e.Fun.FunctionName.Equals("!") || e.Fun.FunctionName.Equals("&&") || e.Fun.FunctionName.Equals("||") || e.Fun.FunctionName.Equals("==>"))
                 {
                     // pass
                 }
@@ -405,6 +434,10 @@ namespace TraceTransformer
                 else if (e.Fun.FunctionName.Equals("==") || e.Fun.FunctionName.Equals("!="))
                 {
                     typeConstraints[currProc].Add(e.Args.Select(arg => expr2TypeVar(arg, currProc.Name)).ToList());
+                }
+                else if (e.Fun.FunctionName.Equals("MapSelect"))
+                {
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(e, currProc.Name), expr2TypeVar(e.Args[0].ToString() + "_val", currProc.Name) });
                 }
                 else
                 {
@@ -416,6 +449,11 @@ namespace TraceTransformer
                 {
                     VisitExpr(arg);
                 }
+            }
+            else if (node is QuantifierExpr)
+            {
+                var e = node as QuantifierExpr;
+                VisitExpr(e.Body);
             }
             return node;
         }
