@@ -11,6 +11,7 @@ public class Diagnoser : StandardVisitor
     Predicate<string> isBvOp;
     Predicate<string> isLoadStore;
     Dictionary<string, int> mapSizes;
+    bool maybeImprecise;
 
 	public Diagnoser(Program prog)
 	{
@@ -24,6 +25,12 @@ public class Diagnoser : StandardVisitor
         {
             mapSizes[map.Name] = 0;
         }
+        maybeImprecise = false;
+    }
+
+    public bool getPrecision()
+    {
+        return maybeImprecise;
     }
 
     public Dictionary<string, int> getMapSizes()
@@ -53,17 +60,21 @@ public class Diagnoser : StandardVisitor
     {
         if (isBvOp(node.Fun.FunctionName))
         {
-            int length;
-            if (int.TryParse(node.Fun.FunctionName.Split('.')[1].Split('i')[1], out length))
+            if (!node.Fun.FunctionName.Contains("bv"))
             {
-                if (length > 1)
+                int length;
+                if (int.TryParse(node.Fun.FunctionName.Split('.')[1].Split('i')[1], out length))
                 {
-                    Console.WriteLine("Catch a bv op at " + node.Line);
+                    if (length > 1)
+                    {
+                        Console.WriteLine("Catch a bv op at " + node.ToString());
+                    }
                 }
-            }
-            else
-            {
-                Console.WriteLine("Cannot parse int: " + node.Fun.FunctionName.Split('.')[1].Split('i')[1]);
+                else
+                {
+                    Console.WriteLine("Cannot parse int: " + node.Fun.FunctionName.Split('.')[1].Split('i')[1]);
+                }
+                maybeImprecise = true;
             }
         }
         if (isLoadStore(node.Fun.FunctionName))
