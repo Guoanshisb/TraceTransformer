@@ -9,18 +9,19 @@ namespace TraceTransformer
     public class ConstantInliner : StandardVisitor
     {
         Program prog;
-        Dictionary<string, LiteralExpr> consts;
+        Dictionary<string, Expr> consts;
 
         public ConstantInliner(Program prog)
         {
             this.prog = prog;
-            consts = new Dictionary<string, LiteralExpr>();
+            consts = new Dictionary<string, Expr>();
         }
 
         public void Inline()
         {
             gatherConsts();
-            prog.Implementations.Iter(impl => VisitImplementation(impl));
+            //prog.Implementations.Iter(impl => VisitImplementation(impl));
+            Visit(prog);
         }
 
         public override Expr VisitIdentifierExpr(IdentifierExpr node)
@@ -35,7 +36,7 @@ namespace TraceTransformer
         {
             //prog.Constants.Iter(c => consts.Add(c.Name));
             var allIntConsts = new HashSet<string>();
-            prog.Constants.Where(c => c.TypedIdent.Type.IsInt && !c.TypedIdent.Type.ToString().Equals("ref")).Iter(c => allIntConsts.Add(c.Name));
+            prog.Constants.Where(c => c.TypedIdent.Type.IsInt || c.TypedIdent.Type.ToString().Equals("ref")).Iter(c => allIntConsts.Add(c.Name));
             foreach (var axiom in prog.Axioms)
             {
                 var expr = axiom.Expr;
@@ -43,13 +44,13 @@ namespace TraceTransformer
                 {
                     var lhs = (expr as NAryExpr).Args[0];
                     var rhs = (expr as NAryExpr).Args[1];
-                    if (lhs is IdentifierExpr && allIntConsts.Contains((lhs as IdentifierExpr).Decl.Name) && rhs is LiteralExpr && (rhs as LiteralExpr).isBigNum)
+                    if (lhs is IdentifierExpr && allIntConsts.Contains((lhs as IdentifierExpr).Decl.Name))
                     {
-                        consts[lhs.ToString()] = rhs as LiteralExpr;
+                        consts[lhs.ToString()] = rhs;
                     }
-                    if (rhs is IdentifierExpr && allIntConsts.Contains((rhs as IdentifierExpr).Decl.Name) && lhs is LiteralExpr && (lhs as LiteralExpr).isBigNum)
+                    if (rhs is IdentifierExpr && allIntConsts.Contains((rhs as IdentifierExpr).Decl.Name))
                     {
-                        consts[rhs.ToString()] = lhs as LiteralExpr;
+                        consts[rhs.ToString()] = lhs;
                     }
                 }
             }
