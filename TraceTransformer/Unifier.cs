@@ -9,11 +9,31 @@ namespace TraceTransformer
     public class Unifier
     {
         List<List<int>> cons;
+        List<List<int>> consMayWithBV;
+        List<List<int>> consWithBV;
         List<HashSet<int>> sols;
 
         public Unifier(List<List<int>> cons)
         {
-            this.cons = cons;
+            this.consMayWithBV = cons;
+            this.cons = new List<List<int>>();
+            consWithBV = new List<List<int>>();
+            // unify groups without bv first
+            // and then tag unified groups with bv
+            foreach (var con in consMayWithBV)
+            {
+                var conWOBV = new List<int>();
+                if (con.Contains(-1))
+                    consWithBV.Add(con);
+                foreach (var c in con)
+                {
+                    if (c != -1)
+                        conWOBV.Add(c);
+                    else
+                        continue;
+                }
+                this.cons.Add(conWOBV);
+            }
             this.sols = new List<HashSet<int>>();
         }
 
@@ -58,6 +78,19 @@ namespace TraceTransformer
                     mergedGroup.UnionWith(con);
                     newSols.Add(mergedGroup);
                     sols = newSols;
+                }
+            }
+            foreach (var sol in sols)
+            {
+                if (sol.Contains(-2))
+                    continue;
+                foreach (var bvCon in consWithBV)
+                {
+                    if (sol.Intersect(bvCon).Count() != 0)
+                    {
+                        sol.Add(-1);
+                        break;
+                    }
                 }
             }
             return sols;

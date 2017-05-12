@@ -130,6 +130,8 @@ namespace TraceTransformer
         {
             foreach (var solInTy in solsInTv)
             {
+                if (solInTy.Count == 0)
+                    continue;
                 var first = tv2Id(solInTy.First());
                 if (solInTy.Contains("BV"))
                 {
@@ -168,7 +170,7 @@ namespace TraceTransformer
 
         public void buildVarIdMaps(string tv)
         {
-            if (!tv.Equals("BV") && !typeVar2Id.Keys.Contains(tv))
+            if (!tv.Equals("BV") && !tv.Equals("INT") && !typeVar2Id.Keys.Contains(tv))
             {
                 typeVar2Id[tv] = idCounter;
                 Id2TypeVar[idCounter] = tv;
@@ -180,6 +182,8 @@ namespace TraceTransformer
         {
             if (tv.Equals("BV"))
                 return -1;
+            else if (tv.Equals("INT"))
+                return -2;
             else
                 return typeVar2Id[tv];
         }
@@ -188,6 +192,8 @@ namespace TraceTransformer
         {
             if (id == -1)
                 return "BV";
+            else if (id == -2)
+                return "INT";
             else
                 return Id2TypeVar[id];
         }
@@ -244,7 +250,7 @@ namespace TraceTransformer
             var ui = new Unifier(allCons);
             solsInInt = ui.Unify();
             //Console.WriteLine("========================solution========================");
-            //solsInInt.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+            //solsInInt.Where(s => s.Contains(-1)).Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
         }
 
         public void updateExprTypes()
@@ -254,7 +260,7 @@ namespace TraceTransformer
                 bool isBV = cons.Contains(-1);
                 foreach (var con in cons)
                 {
-                    if (con == -1)
+                    if (con == -1 || con == -2)
                         continue;
                     var typeVar = id2Tv(con);
                     var procName = getProcNameFromTypeVar(typeVar);
@@ -263,7 +269,7 @@ namespace TraceTransformer
                     {
                         // pass
                     }
-                    else if (expr.StartsWith("$M."))
+                    else if (expr.StartsWith("$M.") && (expr.Contains("val") || expr.Contains("ptr")))
                     {
                         var map = expr.Split('_')[0];
                         var snd = expr.Split('_')[1];
@@ -281,6 +287,18 @@ namespace TraceTransformer
                                 typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(getIntWidth(typeMap[map].AsMap.Result.ToString()));
                             }
                         }
+                        if (snd.Equals("ptr"))
+                        {
+                            if (isBV && !typeMap[map].AsMap.Arguments[0].IsBv)
+                            {
+                                //var size = mapSizes[map];
+                                //if (size == -1)
+                                //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(8);
+                                //else
+                                //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(size);
+                                typeMap[map].AsMap.Arguments[0] = Microsoft.Boogie.Type.GetBvType(64);
+                            }
+                        }
                     }
                     else if (expr.Contains("_ptr"))
                     {
@@ -290,7 +308,8 @@ namespace TraceTransformer
                     {
                         // pass
                     }
-                    else if (!expr.Contains(".") || globals.Contains(expr))
+                    //else if ((!expr.Contains(".") && (!expr.Contains("(")))|| globals.Contains(expr))
+                    else if (((!expr.Contains("("))) || globals.Contains(expr))
                     {
                         // this expr is a varaible
                         Dictionary<string, Microsoft.Boogie.Type> typeMap;
@@ -372,7 +391,7 @@ namespace TraceTransformer
 
         public string getExprFromTypeVar(string tv)
         {
-            if (tv.Equals("BV"))
+            if (tv.Equals("BV") || tv.Equals("INT"))
                 return tv;
             else
                 return tv.Split('-')[1];
@@ -395,6 +414,8 @@ namespace TraceTransformer
         public int getIntWidth(string t)
         {
             int length = -1;
+            if (t.Contains("ref"))
+                return 64;
             if (!int.TryParse(t.Split('i')[1], out length))
             {
                 Console.WriteLine("Cannot parse type: " + t);
@@ -442,7 +463,10 @@ namespace TraceTransformer
                     // v <-> M_val
                     // p <-> M_ptr
                     typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
-                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name) });
+                    if (mapSizes[map.ToString()] == -1)
+                        typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
+                    else
+                        typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name)});
                     VisitExpr(ptr);
                     VisitExpr(val);
                 }
@@ -457,7 +481,10 @@ namespace TraceTransformer
                     // v <-> M_val
                     // p <-> M_ptr
                     typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
-                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name) });
+                    if (mapSizes[map.ToString()] == -1)
+                        typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
+                    else
+                        typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name)});
                     VisitExpr(ptr);
                     VisitExpr(val);
                 }
@@ -514,13 +541,17 @@ namespace TraceTransformer
                 var e = node as NAryExpr;
                 if (considerBv && bvOps.Contains(e.Fun.FunctionName.Split('.')[0]) && !e.Fun.FunctionName.Split('.')[1].Equals("i1"))
                 {
-                    foreach (var arg in e.Args)
-                    {
-                        typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), "BV" });
-                    }
-                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(e, currProc.Name), "BV" });
+                    //foreach (var arg in e.Args)
+                    //{
+                    //    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), "BV" });
+                    //}
+                    //typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(e, currProc.Name), "BV" });
+                    var exprCons = e.Args.Select(arg => expr2TypeVar(arg, currProc.Name)).ToList();
+                    exprCons.Add(expr2TypeVar(e, currProc.Name));
+                    exprCons.Add("BV");
+                    typeConstraints[currProc].Add(exprCons);
                 }
-                else if (e.Fun.FunctionName.Equals("!") || e.Fun.FunctionName.Equals("&&") || e.Fun.FunctionName.Equals("||") || e.Fun.FunctionName.Equals("==>"))
+                else if (e.Fun.FunctionName.Equals("!") || e.Fun.FunctionName.Equals("&&") || e.Fun.FunctionName.Equals("||") || e.Fun.FunctionName.Equals("==>") || e.Fun.FunctionName.Equals("<==>"))
                 {
                     // pass
                 }

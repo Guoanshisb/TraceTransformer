@@ -234,7 +234,12 @@ namespace TraceTransformer
                     if (arg is LiteralExpr && !(arg as LiteralExpr).isBool)
                     {
                         int width;
-                        if (int.TryParse(inputType.Substring("i".Length), out width))
+                        if (inputType.Equals("ref"))
+                        {
+                            width = 64;
+                            node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width);
+                        }
+                        else if (int.TryParse(inputType.Substring("i".Length), out width))
                         {
                             node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width);
                         }
@@ -245,9 +250,13 @@ namespace TraceTransformer
                     }
                 }
 
+                if (node.Fun.FunctionName.Equals("$i2p.i64.ref") || node.Fun.FunctionName.Equals("$p2i.ref.i64") || node.Fun.FunctionName.Equals("$bitcast.ref.ref"))
+                    return node.Args[0];
                 // build a bv expression
                 var bvFuncName = string.Join(".", funcName.Split('.').Select(elem => !elem.Contains("$") ? "bv" + elem.Substring("i".Length) : elem));
-                if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
+                if (node.Fun.FunctionName.Split('.').Count() == 2 && node.Fun.FunctionName.Split('.')[1].Equals("ref"))
+                    bvFuncName = bvFuncName.Split('.')[0] + ".bv64";
+                else if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
                 {
                     var mapSize = getType(node.Args[0].ToString()).AsMap.Result.BvBits;
                     int opSize;

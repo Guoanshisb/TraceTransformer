@@ -26,7 +26,7 @@ namespace TraceTransformer
             SplitType wholeSt = null;
             List<HashSet<string>> localSol = null;
             List<HashSet<string>> globalSol = null;
-            traceDg.Diagnose();
+
             if (args.Any(arg => arg.Equals("/preprocess")))
             {
                 tracePre.Run();
@@ -35,6 +35,7 @@ namespace TraceTransformer
             }
             if (args.Any(arg => arg.Equals("/transform")))
             {
+                traceDg.Diagnose();
                 traceProgram = tracePre.Run();
                 traceSt = new SplitType(traceProgram, traceDg.getMapSizes());
                 traceSt.Run();
@@ -49,6 +50,7 @@ namespace TraceTransformer
             }
             if (args.Any(arg => arg.Equals("/peek")))
             {
+                wholeDg.Diagnose();
                 wholeProgram = wholePre.Run();
                 wholeSt = new SplitType(wholeProgram, wholeDg.getMapSizes());
                 wholeSt.Solve();
