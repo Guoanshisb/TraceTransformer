@@ -31,6 +31,8 @@ namespace TraceTransformer
                 var impls = prog.TopLevelDeclarations.OfType<Implementation>().Where(impl => impl.Name.Equals(procName));
                 if (impls.Count() == 0)
                     continue;
+                else if (impls.First().Name.StartsWith("$memset") || impls.First().Name.StartsWith("$memcpy"))
+                    continue;
                 else
                     RewriteImpl(impls.First(), types);
             }
@@ -78,6 +80,7 @@ namespace TraceTransformer
         {
             Procedure callee = prog.TopLevelDeclarations.OfType<Procedure>().Where(p => p.Name.Equals(node.callee)).FirstOrDefault();
             Implementation impl = prog.Implementations.Any(i => i.Name.Equals(callee.Name)) ? prog.Implementations.Where(i => i.Name.Equals(callee.Name)).First() : null;
+            bool isMemCpyOrMemset = callee.Name.StartsWith("$memcpy") || callee.Name.StartsWith("$memset");
             foreach (var pair in node.Ins.Zip(callee.InParams))
             {
                 var arg = pair.Item1;
@@ -94,8 +97,17 @@ namespace TraceTransformer
                     {
                         param.TypedIdent.Type = argType;
                     }
-                } else if (expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
+                }
+                else if (!isMemCpyOrMemset && expTypes.Keys.Contains(callee.Name) && !expTypes[callee.Name][param.Name].ToString().Equals(param.TypedIdent.Type.ToString()))
                     param.TypedIdent.Type = expTypes[callee.Name][param.Name];
+                else if (isMemCpyOrMemset && param.Name.Equals("val"))
+                {
+                    if (!expTypes[callee.Name][param.Name].ToString().Equals(callee.InParams[0].TypedIdent.Type.AsMap.Result.ToString()))
+                    {
+                        param.TypedIdent.Type = callee.InParams[0].TypedIdent.Type.AsMap.Result;
+                        expTypes[callee.Name][param.Name] = callee.InParams[0].TypedIdent.Type.AsMap.Result;
+                    }
+                }
             }
             List<Expr> newIns = new List<Expr>();
             for (int i = 0; i < node.Ins.Count; ++i)
@@ -117,6 +129,12 @@ namespace TraceTransformer
                             Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
                         }
                     }
+                }
+                else if (isMemCpyOrMemset && param.TypedIdent.Type.ToString().Equals("ref") && getType(arg.ToString()).IsBv)
+                {
+                    newIns[i] = new NAryExpr(Token.NoToken,
+                            new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(f => f.Name.Equals("$bv2int.64")).FirstOrDefault()),
+                            new List<Expr>() { arg });
                 }
             }
             node.Ins = newIns;
@@ -270,24 +288,29 @@ namespace TraceTransformer
                 }
 
                 if (node.Fun.FunctionName.Equals("$i2p.i64.ref") || node.Fun.FunctionName.Equals("$p2i.ref.i64") || node.Fun.FunctionName.Equals("$bitcast.ref.ref"))
-                    return node.Args[0];
+                    return VisitExpr(node.Args[0]);
                 // build a bv expression
-                var bvFuncName = string.Join(".", funcName.Split('.').Select(elem => !elem.Contains("$") ? "bv" + elem.Substring("i".Length) : elem));
-                if (node.Fun.FunctionName.Split('.').Count() == 2 && node.Fun.FunctionName.Split('.')[1].Equals("ref"))
-                    bvFuncName = bvFuncName.Split('.')[0] + ".bv64";
+                var bvFuncName = string.Join(".", funcName.Split('.').Select(elem => !elem.Contains("$") && !elem.Contains("bool")? "bv" + elem.Substring("i".Length) : elem));
+                if (!isLoadStore && node.Fun.FunctionName.Split('.').Any(s => s.Contains("ef")))
+                    bvFuncName = string.Join(".", bvFuncName.Split('.').Select(s => s.Contains("ef")? "bv64" : s));
                 else if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
                 {
                     var mapSize = getType(node.Args[0].ToString()).AsMap.Result.BvBits;
                     int opSize;
-                    if (int.TryParse(inputType.Substring("i".Length), out opSize))
+                    if (inputType.Equals("ref"))
+                        opSize = 64;
+                    else if (int.TryParse(inputType.Substring("i".Length), out opSize))
                     {
-                        if (mapSize != opSize)
-                            bvFuncName = bvFuncName.Split('.')[0] + ".bytes." + bvFuncName.Split('.')[1];
+                        //pass
                     }
                     else
                     {
                         Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
                     }
+                    if (mapSize != opSize)
+                        bvFuncName = bvFuncName.Split('.')[0] + ".bytes." + "bv" + opSize;
+                    else
+                        bvFuncName = bvFuncName.Split('.')[0] + ".bv" + opSize;
                 }
                 node = new NAryExpr(Token.NoToken, new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(func => func.Name.Equals(bvFuncName)).FirstOrDefault()), node.Args);
                 //node.Args.Iter(se => VisitExpr(se));

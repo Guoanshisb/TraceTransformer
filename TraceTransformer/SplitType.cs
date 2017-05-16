@@ -448,6 +448,10 @@ namespace TraceTransformer
             }
             //Console.WriteLine(string.Join(",\t", varInitTypes.Keys));
             //Console.WriteLine(string.Join(",\t", varInitTypes.Values));
+            if (node.Name.StartsWith("$memset") || node.Name.StartsWith("$memcpy"))
+            {
+                return node;
+            }
             return base.VisitImplementation(node);
         }
 
@@ -468,7 +472,7 @@ namespace TraceTransformer
                     // v <-> M_val
                     // p <-> M_ptr
                     //typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
-                    if (mapSizes[map.ToString()] == -1)
+                    if (false && mapSizes[map.ToString()] == -1)
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
                     else
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name)});
@@ -486,7 +490,7 @@ namespace TraceTransformer
                     // v <-> M_val
                     // p <-> M_ptr
                     //typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
-                    if (mapSizes[map.ToString()] == -1)
+                    if (false && mapSizes[map.ToString()] == -1)
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
                     else
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name)});
