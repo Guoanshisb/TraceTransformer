@@ -101,6 +101,37 @@ namespace TraceTransformer
         }
     }
 
+    public class removeExtractValue : StandardVisitor
+    {
+        Program prog;
+
+        public removeExtractValue(Program prog)
+        {
+            this.prog = prog;
+        }
+
+        public void Remove()
+        {
+            foreach (var impl in prog.TopLevelDeclarations.OfType<Implementation>())
+            {
+                VisitImplementation(impl);
+            }
+        }
+
+        public override Cmd VisitAssignCmd(AssignCmd node)
+        {
+            if (node.Rhss.Count == 1 && node.Rhss[0] is NAryExpr && (node.Rhss[0] as NAryExpr).Fun.FunctionName.Equals("$extractvalue"))
+            {
+                Expr lhs = node.Lhss[0].AsExpr;
+                return new HavocCmd(Token.NoToken, new List<IdentifierExpr>() { new IdentifierExpr(Token.NoToken, lhs.ToString(), lhs.Type) });
+            }
+            else
+            {
+                return node;
+            }
+        }
+    }
+
     public class FunctionInlingVisitor : StandardVisitor
     {
         private Predicate<Function> Condition;
@@ -415,6 +446,8 @@ namespace TraceTransformer
             ci.Inline();
             var fk = new ForkProcsWithoutImpls(prog);
             fk.Fork();
+            var re = new removeExtractValue(prog);
+            re.Remove();
             return BoogieUtil.ReResolveInMem(prog);
             //var inl = new InlineFunctionCalls(prog);
             //inl.Inline();
