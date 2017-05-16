@@ -151,6 +151,9 @@ namespace TraceTransformer
                         implParam.TypedIdent.Type = procParam.TypedIdent.Type;
                 }
             }
+            for (int i = 0; i < node.Ins.Count; ++i)
+                node.Ins[i] = VisitExpr(node.Ins[i]);
+
             return node;
         }
 
@@ -215,7 +218,14 @@ namespace TraceTransformer
             else if (node.Fun.FunctionName.Contains("$"))
             {
                 bool bv = false;
-                if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
+                if (node.Fun.FunctionName.Contains("$bv2int"))
+                {
+                    for (int i = 0; i < node.Args.Count; ++i)
+                        node.Args[i] = VisitExpr(node.Args[i]);
+                    return node;
+                }
+                bool isLoadStore = node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store");
+                if (isLoadStore)
                 {
                     bv = getType(node.Args[0].ToString()).AsMap.Result.IsBv;
                 }
@@ -231,7 +241,7 @@ namespace TraceTransformer
                 for (int i = 0; i < node.Args.Count; ++i)
                 {
                     var arg = node.Args[i];
-                    if (arg is LiteralExpr && !(arg as LiteralExpr).isBool)
+                    if (!(isLoadStore && i == 1) && arg is LiteralExpr && !(arg as LiteralExpr).isBool)
                     {
                         int width;
                         if (inputType.Equals("ref"))
@@ -246,6 +256,15 @@ namespace TraceTransformer
                         else
                         {
                             Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                        }
+                    }
+
+                    if (isLoadStore && i == 1 && !(arg is LiteralExpr))
+                    {
+                        if (getType(arg.ToString()).IsBv)
+                        { node.Args[i] = new NAryExpr(Token.NoToken,
+                            new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(f => f.Name.Equals("$bv2int.64")).FirstOrDefault()),
+                            new List<Expr>() { arg });
                         }
                     }
                 }

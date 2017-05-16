@@ -84,7 +84,9 @@ public class Diagnoser : StandardVisitor
                 width = -2;
             else
             {
-                if (int.TryParse(node.Fun.FunctionName.Split('.')[1].Split('i')[1], out width))
+                var type = node.Fun.FunctionName.Split('.')[1];
+                var prefix = type.StartsWith("i") ? "i" : "bv";
+                if (int.TryParse(type.Substring(prefix.Length), out width))
                 {
                     // pass
                 }

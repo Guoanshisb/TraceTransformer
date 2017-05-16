@@ -289,7 +289,7 @@ namespace TraceTransformer
                         }
                         if (snd.Equals("ptr"))
                         {
-                            if (isBV && !typeMap[map].AsMap.Arguments[0].IsBv)
+                            if (false && isBV && !typeMap[map].AsMap.Arguments[0].IsBv)
                             {
                                 //var size = mapSizes[map];
                                 //if (size == -1)
@@ -351,6 +351,11 @@ namespace TraceTransformer
                             }
                             else
                             {
+                                if (expr.StartsWith("$extractvalue"))
+                                {
+                                    typeMap[expr] = Microsoft.Boogie.Type.Int;
+                                    continue;
+                                }
                                 rt = expr.Split('(')[0].Split('.')[1];
                                 length = getIntWidth(rt);
                             }
@@ -462,7 +467,7 @@ namespace TraceTransformer
                     // ---------
                     // v <-> M_val
                     // p <-> M_ptr
-                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
+                    //typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
                     if (mapSizes[map.ToString()] == -1)
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
                     else
@@ -480,7 +485,7 @@ namespace TraceTransformer
                     // --------------
                     // v <-> M_val
                     // p <-> M_ptr
-                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
+                    //typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
                     if (mapSizes[map.ToString()] == -1)
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
                     else
@@ -563,6 +568,10 @@ namespace TraceTransformer
                 else if (e.Fun.FunctionName.Equals("MapSelect"))
                 {
                     typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(e, currProc.Name), expr2TypeVar(e.Args[0].ToString() + "_val", currProc.Name) });
+                }
+                else if (e.Fun.FunctionName.StartsWith("$extractvalue"))
+                {
+                    // pass
                 }
                 else
                 {
