@@ -53,6 +53,7 @@
     <Compile Include="Rewritter.cs" />
     <Compile Include="SplitType.cs" />
     <Compile Include="Unifier.cs" />
+    <Compile Include="Util.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

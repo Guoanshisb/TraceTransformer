@@ -119,15 +119,17 @@ namespace TraceTransformer
                 {
                     if (expTypes.Keys.Contains(callee.Name) && expTypes[callee.Name][param.Name].ToString().Contains("bv"))
                     {
-                        int width;
-                        if (int.TryParse(expTypes[callee.Name][param.Name].ToString().ToString().Substring("bv".Length), out width))
-                        {
-                            newIns[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width));
-                        }
-                        else
-                        {
-                            Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
-                        }
+                        //int width;
+                        //if (int.TryParse(expTypes[callee.Name][param.Name].ToString().ToString().Substring("bv".Length), out width))
+                        //{
+                        //    newIns[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width));
+                        //}
+                        //else
+                        //{
+                        //    Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                        //}
+                        newIns[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()),
+                            TTUtil.getWidthFromType(expTypes[callee.Name][param.Name].ToString())));
                     }
                 }
                 else if (isMemCpyOrMemset && param.TypedIdent.Type.ToString().Equals("ref") && getType(arg.ToString()).IsBv)
@@ -187,15 +189,17 @@ namespace TraceTransformer
                 {
                     if (getType(lhs.AsExpr.ToString()).ToString().Contains("bv"))
                     {
-                        int width;
-                        if (int.TryParse(getType(lhs.AsExpr.ToString()).ToString().Substring("bv".Length), out width))
-                        {
-                            newRhss[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Rhss[i].ToString()), width));
-                        }
-                        else
-                        {
-                            Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
-                        }
+                        //int width;
+                        //if (int.TryParse(getType(lhs.AsExpr.ToString()).ToString().Substring("bv".Length), out width))
+                        //{
+                        //    newRhss[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Rhss[i].ToString()), width));
+                        //}
+                        //else
+                        //{
+                        //    Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                        //}
+                        newRhss[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Rhss[i].ToString()),
+                            TTUtil.getWidthFromType(getType(lhs.AsExpr.ToString()).ToString())));
                     }
                 }
             }
@@ -220,15 +224,17 @@ namespace TraceTransformer
                         return node;
                     if (!getType(node.Args[noLit].ToString()).ToString().Contains("bv"))
                         return node;
-                    int width;
-                    if (int.TryParse(getType(node.Args[noLit].ToString()).ToString().Substring("bv".Length), out width))
-                    {
-                        node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Args[lit].ToString()), width);
-                    }
-                    else
-                    {
-                        Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
-                    }
+                    //int width;
+                    //if (int.TryParse(getType(node.Args[noLit].ToString()).ToString().Substring("bv".Length), out width))
+                    //{
+                    //    node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Args[lit].ToString()), width);
+                    //}
+                    //else
+                    //{
+                    //    Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                    //}
+                    node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Args[lit].ToString()),
+                        TTUtil.getWidthFromType(getType(node.Args[noLit].ToString()).ToString()));
                     VisitExpr(node.Args[noLit]);
                     return node;
                 }
@@ -261,20 +267,22 @@ namespace TraceTransformer
                     var arg = node.Args[i];
                     if (!(isLoadStore && i == 1) && arg is LiteralExpr && !(arg as LiteralExpr).isBool)
                     {
-                        int width;
-                        if (inputType.Equals("ref"))
-                        {
-                            width = 64;
-                            node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width);
-                        }
-                        else if (int.TryParse(inputType.Substring("i".Length), out width))
-                        {
-                            node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width);
-                        }
-                        else
-                        {
-                            Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
-                        }
+                        //int width;
+                        //if (inputType.Equals("ref"))
+                        //{
+                        //    width = 64;
+                        //    node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width);
+                        //}
+                        //else if (int.TryParse(inputType.Substring("i".Length), out width))
+                        //{
+                        //    node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()), width);
+                        //}
+                        //else
+                        //{
+                        //    Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                        //}
+                        node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()),
+                            TTUtil.getWidthFromType(inputType));
                     }
 
                     if (isLoadStore && i == 1 && !(arg is LiteralExpr))
@@ -296,17 +304,17 @@ namespace TraceTransformer
                 else if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
                 {
                     var mapSize = getType(node.Args[0].ToString()).AsMap.Result.BvBits;
-                    int opSize;
-                    if (inputType.Equals("ref"))
-                        opSize = 64;
-                    else if (int.TryParse(inputType.Substring("i".Length), out opSize))
-                    {
-                        //pass
-                    }
-                    else
-                    {
-                        Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
-                    }
+                    int opSize = TTUtil.getWidthFromType(inputType);
+                    //if (inputType.Equals("ref"))
+                    //    opSize = 64;
+                    //else if (int.TryParse(inputType.Substring("i".Length), out opSize))
+                    //{
+                    //    //pass
+                    //}
+                    //else
+                    //{
+                    //    Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
+                    //}
                     if (mapSize != opSize)
                         bvFuncName = bvFuncName.Split('.')[0] + ".bytes." + "bv" + opSize;
                     else
