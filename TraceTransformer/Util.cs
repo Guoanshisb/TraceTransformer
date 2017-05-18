@@ -18,6 +18,10 @@ public static class TTUtil
         {
             width = 64;
         }
+        else if (type.Equals("float"))
+        {
+            width = 32;
+        }
         else
         {
             string prefix = type.StartsWith("i") ? "i" : "bv";

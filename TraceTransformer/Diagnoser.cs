@@ -82,7 +82,7 @@ public class Diagnoser : StandardVisitor
             if (node.Fun.FunctionName.Contains("ref"))
                 width = -2;
             else if (node.Fun.FunctionName.Contains("float"))
-                width = -3;
+                width = 32;
             else
             {
                 var type = node.Fun.FunctionName.Split('.')[1];
