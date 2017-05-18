@@ -17,11 +17,8 @@ namespace TraceTransformer
             CommandLineOptions.Clo.DoModSetAnalysis = true;
 
             var traceProgram = BoogieUtil.ReadAndResolve(args[0], false);
-            var wholeProgram = BoogieUtil.ReadAndResolve(args[1], false);
             var tracePre = new Preprocess(traceProgram);
             var traceDg = new Diagnoser(traceProgram);
-            var wholePre = new Preprocess(wholeProgram);
-            var wholeDg = new Diagnoser(wholeProgram);
             SplitType traceSt = null;
             SplitType wholeSt = null;
             List<HashSet<string>> localSol = null;
@@ -36,6 +33,8 @@ namespace TraceTransformer
             if (args.Any(arg => arg.Equals("/transform")))
             {
                 traceDg.Diagnose();
+                if (!traceDg.getPrecision())
+                    return;
                 traceProgram = tracePre.Run();
                 traceSt = new SplitType(traceProgram, traceDg.getMapSizes());
                 traceSt.Run();
@@ -44,10 +43,13 @@ namespace TraceTransformer
                 //{
                 //    Console.WriteLine(string.Join(", ", sol));
                 //}
-                var rw = new Rewritter(traceProgram, traceSt.getTypes(), args[2]);
+                var rw = new Rewritter(traceProgram, traceSt.getTypes(), args[0].Split('.')[0]+"_transformed.bpl");
                 rw.Rewrite();
-                //return;
+                return;
             }
+            var wholeProgram = BoogieUtil.ReadAndResolve(args[1], false);
+            var wholePre = new Preprocess(wholeProgram);
+            var wholeDg = new Diagnoser(wholeProgram);
             if (args.Any(arg => arg.Equals("/peek")))
             {
                 wholeDg.Diagnose();
