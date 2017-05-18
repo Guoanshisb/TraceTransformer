@@ -101,16 +101,16 @@ namespace TraceTransformer
         }
     }
 
-    public class removeExtractValue : StandardVisitor
+    public class RemoveOrInline : StandardVisitor
     {
         Program prog;
 
-        public removeExtractValue(Program prog)
+        public RemoveOrInline(Program prog)
         {
             this.prog = prog;
         }
 
-        public void Remove()
+        public void Run()
         {
             foreach (var impl in prog.TopLevelDeclarations.OfType<Implementation>())
             {
@@ -124,6 +124,25 @@ namespace TraceTransformer
             {
                 Expr lhs = node.Lhss[0].AsExpr;
                 return new HavocCmd(Token.NoToken, new List<IdentifierExpr>() { new IdentifierExpr(Token.NoToken, lhs.ToString(), lhs.Type) });
+            }
+            else
+            {
+                return node;
+            }
+        }
+
+        public override Cmd VisitAssumeCmd(AssumeCmd node)
+        {
+            var expr = node.Expr;
+            if (expr is NAryExpr && (expr as NAryExpr).Fun.FunctionName.Equals("$isExternal"))
+            {
+                var appExpr = expr as NAryExpr;
+                var ptrExpr = appExpr.Args[0];
+                node.Expr = new NAryExpr(Token.NoToken,
+                    new FunctionCall(prog.Functions.Where(f => f.Name.Equals("$slt.ref.bool")).First()),
+                    new List<Expr>() { ptrExpr,
+                        new IdentifierExpr(Token.NoToken, prog.Constants.Where(g => g.Name.Equals("$EXTERNS_BOTTOM")).First()) });
+                return node;
             }
             else
             {
@@ -446,8 +465,8 @@ namespace TraceTransformer
             ci.Inline();
             var fk = new ForkProcsWithoutImpls(prog);
             fk.Fork();
-            var re = new removeExtractValue(prog);
-            re.Remove();
+            var re = new RemoveOrInline(prog);
+            re.Run();
             return BoogieUtil.ReResolveInMem(prog);
             //var inl = new InlineFunctionCalls(prog);
             //inl.Inline();

@@ -128,8 +128,9 @@ namespace TraceTransformer
                         //{
                         //    Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
                         //}
-                        newIns[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()),
-                            TTUtil.getWidthFromType(expTypes[callee.Name][param.Name].ToString())));
+                        if (!(isMemCpyOrMemset && param.TypedIdent.Type.ToString().Equals("ref")))
+                            newIns[i] = (new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()),
+                                TTUtil.getWidthFromType(expTypes[callee.Name][param.Name].ToString())));
                     }
                 }
                 else if (isMemCpyOrMemset && param.TypedIdent.Type.ToString().Equals("ref") && getType(arg.ToString()).IsBv)
@@ -257,15 +258,17 @@ namespace TraceTransformer
                 {
                     bv = getType(node.ToString()).ToString().Contains("bv");
                 }
-                if (!bv)
+
+                if (!bv && !isLoadStore)
                     return node;
+
                 var funcName = node.Fun.FunctionName.Split('(')[0];
                 var inputType = funcName.Split('.')[1];
 
                 for (int i = 0; i < node.Args.Count; ++i)
                 {
                     var arg = node.Args[i];
-                    if (!(isLoadStore && i == 1) && arg is LiteralExpr && !(arg as LiteralExpr).isBool)
+                    if (!(isLoadStore && i == 1) && bv && arg is LiteralExpr && !(arg as LiteralExpr).isBool)
                     {
                         //int width;
                         //if (inputType.Equals("ref"))
@@ -283,6 +286,7 @@ namespace TraceTransformer
                         //}
                         node.Args[i] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(arg.ToString()),
                             TTUtil.getWidthFromType(inputType));
+                        continue;
                     }
 
                     if (isLoadStore && i == 1 && !(arg is LiteralExpr))
@@ -293,7 +297,13 @@ namespace TraceTransformer
                             new List<Expr>() { arg });
                         }
                     }
+
+                    if (!bv && isLoadStore)
+                        node.Args[i] = VisitExpr(node.Args[i]);
                 }
+
+                if (!bv)
+                    return node;
 
                 if (node.Fun.FunctionName.Equals("$i2p.i64.ref") || node.Fun.FunctionName.Equals("$p2i.ref.i64") || node.Fun.FunctionName.Equals("$bitcast.ref.ref"))
                     return VisitExpr(node.Args[0]);
@@ -321,7 +331,7 @@ namespace TraceTransformer
                         bvFuncName = bvFuncName.Split('.')[0] + ".bv" + opSize;
                 }
                 node = new NAryExpr(Token.NoToken, new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(func => func.Name.Equals(bvFuncName)).FirstOrDefault()), node.Args);
-                //node.Args.Iter(se => VisitExpr(se));
+
                 for (int i = 0; i < node.Args.Count; ++i)
                     node.Args[i] = VisitExpr(node.Args[i]);
                 return node;

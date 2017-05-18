@@ -300,11 +300,11 @@ namespace TraceTransformer
                             }
                         }
                     }
-                    else if (expr.Contains("_ptr"))
+                    else if (expr.Contains("_ptr") && !exprTypes[procName].Keys.Contains(expr))
                     {
                         // pass
                     }
-                    else if (expr.Contains("_val"))
+                    else if (expr.Contains("_val") && !exprTypes[procName].Keys.Contains(expr))
                     {
                         // pass
                     }
@@ -351,11 +351,6 @@ namespace TraceTransformer
                             }
                             else
                             {
-                                if (expr.StartsWith("$extractvalue"))
-                                {
-                                    typeMap[expr] = Microsoft.Boogie.Type.Int;
-                                    continue;
-                                }
                                 rt = expr.Split('(')[0].Split('.')[1];
                                 length = TTUtil.getWidthFromType(rt);
                             }
@@ -472,7 +467,7 @@ namespace TraceTransformer
                     // v <-> M_val
                     // p <-> M_ptr
                     //typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
-                    if (mapSizes[map.ToString()] == -1)
+                    if (false && mapSizes[map.ToString()] == -1)
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
                     else
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name)});
@@ -490,7 +485,7 @@ namespace TraceTransformer
                     // v <-> M_val
                     // p <-> M_ptr
                     //typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_ptr", currProc.Name, true), expr2TypeVar(ptr, currProc.Name) });
-                    if (mapSizes[map.ToString()] == -1)
+                    if (false && mapSizes[map.ToString()] == -1)
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name), "INT" });
                     else
                         typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(map.ToString() + "_val", currProc.Name, true), expr2TypeVar(val, currProc.Name)});
