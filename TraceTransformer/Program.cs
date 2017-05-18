@@ -4,7 +4,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Boogie;
-using cba.Util;
 
 namespace TraceTransformer
 {
@@ -16,7 +15,7 @@ namespace TraceTransformer
             CommandLineOptions.Clo.PrintInstrumented = true;
             CommandLineOptions.Clo.DoModSetAnalysis = true;
 
-            var traceProgram = BoogieUtil.ReadAndResolve(args[0], false);
+            var traceProgram = TTUtil.ReadAndResolve(args[0], false);
             var tracePre = new Preprocess(traceProgram);
             var traceDg = new Diagnoser(traceProgram);
             SplitType traceSt = null;
@@ -27,7 +26,7 @@ namespace TraceTransformer
             if (args.Any(arg => arg.Equals("/preprocess")))
             {
                 tracePre.Run();
-                BoogieUtil.PrintProgram(traceProgram, "temp.bpl");
+                TTUtil.PrintProgram(traceProgram, "temp.bpl");
                 return;
             }
             if (args.Any(arg => arg.Equals("/transform")))
@@ -47,7 +46,7 @@ namespace TraceTransformer
                 rw.Rewrite();
                 return;
             }
-            var wholeProgram = BoogieUtil.ReadAndResolve(args[1], false);
+            var wholeProgram = TTUtil.ReadAndResolve(args[1], false);
             var wholePre = new Preprocess(wholeProgram);
             var wholeDg = new Diagnoser(wholeProgram);
             if (args.Any(arg => arg.Equals("/peek")))

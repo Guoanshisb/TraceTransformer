@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Boogie;
-using cba.Util;
 
 namespace TraceTransformer
 {
@@ -40,7 +39,7 @@ namespace TraceTransformer
             {
                 g.TypedIdent.Type = expTypes["$TTGlobal"][g.Name];
             }
-            BoogieUtil.PrintProgram(prog, outputProg);
+            TTUtil.PrintProgram(prog, outputProg);
 
         }
 

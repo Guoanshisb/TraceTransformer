@@ -3,7 +3,6 @@ using System.Linq;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using Microsoft.Boogie;
-using cba.Util;
 
 public class Diagnoser : StandardVisitor
 {

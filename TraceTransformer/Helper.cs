@@ -2,7 +2,6 @@
 using System.Linq;
 using System.Collections.Generic;
 using Microsoft.Boogie;
-using cba.Util;
 
 namespace TraceTransformer
 {
@@ -467,7 +466,7 @@ namespace TraceTransformer
             fk.Fork();
             var re = new RemoveOrInline(prog);
             re.Run();
-            return BoogieUtil.ReResolveInMem(prog);
+            return TTUtil.ReResolveInMem(prog);
             //var inl = new InlineFunctionCalls(prog);
             //inl.Inline();
             //var meg = new MergeAssignments(prog);
