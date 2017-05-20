@@ -45,11 +45,11 @@ namespace TraceTransformer
                     var rhs = (expr as NAryExpr).Args[1];
                     if (lhs is IdentifierExpr && allIntConsts.Contains((lhs as IdentifierExpr).Decl.Name))
                     {
-                        consts[lhs.ToString()] = rhs;
+                        consts[lhs.ToString()] = TTUtil.Evaluate(rhs);
                     }
                     if (rhs is IdentifierExpr && allIntConsts.Contains((rhs as IdentifierExpr).Decl.Name))
                     {
-                        consts[rhs.ToString()] = lhs;
+                        consts[rhs.ToString()] = TTUtil.Evaluate(lhs);
                     }
                 }
             }

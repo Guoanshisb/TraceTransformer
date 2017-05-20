@@ -29,11 +29,15 @@ namespace TraceTransformer
                 TTUtil.PrintProgram(traceProgram, "temp.bpl");
                 return;
             }
+
             if (args.Any(arg => arg.Equals("/transform")))
             {
                 traceDg.Diagnose();
                 if (!traceDg.getPrecision())
+                {
+                    Console.WriteLine("Got nothing to do");
                     return;
+                }
                 traceProgram = tracePre.Run();
                 traceSt = new SplitType(traceProgram, traceDg.getMapSizes());
                 traceSt.Run();
@@ -44,35 +48,29 @@ namespace TraceTransformer
                 //}
                 var rw = new Rewritter(traceProgram, traceSt.getTypes(), args[0].Split('.')[0]+"_transformed.bpl");
                 rw.Rewrite();
-                return;
+                if (!args.Any(a => a.Equals("/update")))
+                    return;
             }
-            var wholeProgram = TTUtil.ReadAndResolve(args[1], false);
-            var wholePre = new Preprocess(wholeProgram);
-            var wholeDg = new Diagnoser(wholeProgram);
-            if (args.Any(arg => arg.Equals("/peek")))
+
+            if (args.Any(arg => arg.Equals("/update")))
             {
+                var wholeProgram = TTUtil.ReadAndResolve(args[1], false);
+                var wholePre = new Preprocess(wholeProgram);
+                var wholeDg = new Diagnoser(wholeProgram);
                 wholeDg.Diagnose();
+
                 wholeProgram = wholePre.Run();
                 wholeSt = new SplitType(wholeProgram, wholeDg.getMapSizes());
                 wholeSt.Solve();
                 globalSol = wholeSt.getSolsInTv();
-                //foreach (var sol in globalSol)
-                //{
-                //    Console.WriteLine(string.Join(", ", sol));
-                //}
-            }
-            if (args.Any(arg => arg.Equals("/update")))
-            {
+
                 wholeSt.Merge(localSol);
                 globalSol = wholeSt.getSolsInTv();
-                foreach (var sol in globalSol)
-                {
-                    Console.WriteLine(string.Join(", ", sol));
-                }
+
                 wholeSt.updateSolsInInt();
                 wholeSt.updateExprTypes();
-                wholeSt.showUpdatedTypes();
-                var rw = new Rewritter(wholeProgram, wholeSt.getTypes(), args[3]);
+                //wholeSt.showUpdatedTypes();
+                var rw = new Rewritter(wholeProgram, wholeSt.getTypes(), args[1].Split('.')[0]+"_updated.bpl");
                 rw.Rewrite();
             }
         }

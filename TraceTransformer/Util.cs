@@ -130,4 +130,43 @@ public static class TTUtil
         }
         return p;
     }
+
+    public static Expr Evaluate(Expr e)
+    {
+        if (e is NAryExpr && (e as NAryExpr).Fun.FunctionName.Equals("$sub.ref"))
+        {
+            var sub = e as NAryExpr;
+            var op1 = sub.Args[0];
+            var op2 = sub.Args[1];
+            if (op1 is LiteralExpr && op2 is LiteralExpr)
+            {
+                return new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(op1.ToString()) - Microsoft.Basetypes.BigNum.FromString(op2.ToString()));
+            }
+        }
+        return e;
+    }
+
+    public static bool isNumber(Expr e)
+    {
+        if (e is LiteralExpr && !(e as LiteralExpr).isBool)
+            return true;
+        else if (e is NAryExpr && (e as NAryExpr).Fun.FunctionName.Equals("-") && (e as NAryExpr).Args[0] is LiteralExpr)
+            return true;
+        else
+            return false;
+    }
+
+    public static string expr2Number(Expr e)
+    {
+        string lit;
+        if (e is NAryExpr)
+        {
+            int val = int.Parse(e.ToString());
+            lit = ((UInt64)((Int64)val)).ToString();
+
+        }
+        else
+            lit = e.ToString();
+        return lit;
+    }
 }

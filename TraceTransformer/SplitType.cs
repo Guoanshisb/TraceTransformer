@@ -251,6 +251,7 @@ namespace TraceTransformer
             solsInInt = ui.Unify();
             //Console.WriteLine("========================solution========================");
             //solsInInt.Where(s => s.Contains(-1)).Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+            //solsInInt.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
         }
 
         public void updateExprTypes()
@@ -394,7 +395,8 @@ namespace TraceTransformer
             if (tv.Equals("BV") || tv.Equals("INT"))
                 return tv;
             else
-                return tv.Split('-')[1];
+                //return tv.Split('-')[1];
+                return tv.Substring(tv.IndexOf('-') + 1);
         }
 
         public string getProcNameFromTypeVar(string tv)
