@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Boogie;
+using System.IO;
 
 namespace TraceTransformer
 {
@@ -46,7 +47,7 @@ namespace TraceTransformer
                 //{
                 //    Console.WriteLine(string.Join(", ", sol));
                 //}
-                var rw = new Rewritter(traceProgram, traceSt.getTypes(), args[0].Split('.')[0]+"_transformed.bpl");
+                var rw = new Rewritter(traceProgram, traceSt.getTypes(), Path.GetFileNameWithoutExtension(args[0])+ "_transformed.bpl");
                 rw.Rewrite();
                 if (!args.Any(a => a.Equals("/update")))
                     return;
@@ -75,7 +76,7 @@ namespace TraceTransformer
                 {
                     Console.WriteLine(string.Join(", ", sol));
                 }
-                var rw = new Rewritter(wholeProgram, wholeSt.getTypes(), args[1].Split('.')[0]+"_updated.bpl");
+                var rw = new Rewritter(wholeProgram, wholeSt.getTypes(), Path.GetFileNameWithoutExtension(args[1])+ "_updated.bpl");
                 rw.Rewrite();
             }
         }
