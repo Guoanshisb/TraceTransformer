@@ -128,7 +128,7 @@ namespace TraceTransformer
 
         public bool isRealIntersect(IEnumerable<string> intersec)
         {
-            return intersec.Any(i => implsByName.Keys.Contains(getProcNameFromTypeVar(i)));
+            return intersec.Any(i => implsByName.Keys.Contains(getProcNameFromTypeVar(i)) || getProcNameFromTypeVar(i).Equals("$TTGlobal"));
         }
 
         public void updateSolsInInt()
