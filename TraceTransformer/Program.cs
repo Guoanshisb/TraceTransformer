@@ -70,6 +70,11 @@ namespace TraceTransformer
                 wholeSt.updateSolsInInt();
                 wholeSt.updateExprTypes();
                 //wholeSt.showUpdatedTypes();
+                Console.WriteLine("==================updated global solution================");
+                foreach (var sol in globalSol)
+                {
+                    Console.WriteLine(string.Join(", ", sol));
+                }
                 var rw = new Rewritter(wholeProgram, wholeSt.getTypes(), args[1].Split('.')[0]+"_updated.bpl");
                 rw.Rewrite();
             }

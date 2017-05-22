@@ -233,8 +233,9 @@ namespace TraceTransformer
                     //{
                     //    Console.Write("Having trouble parsing numbers in expr: " + node.ToString());
                     //}
-                    node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Args[lit].ToString()),
-                        TTUtil.getWidthFromType(getType(node.Args[noLit].ToString()).ToString()));
+                    if (!node.Args[lit].ToString().Contains("bv"))
+                        node.Args[lit] = new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(node.Args[lit].ToString()),
+                            TTUtil.getWidthFromType(getType(node.Args[noLit].ToString()).ToString()));
                     VisitExpr(node.Args[noLit]);
                     return node;
                 }
