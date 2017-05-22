@@ -169,4 +169,12 @@ public static class TTUtil
             lit = e.ToString();
         return lit;
     }
+
+    public static LiteralExpr intLit2bvLit(Expr e, int size)
+    {
+        if (!e.ToString().Contains("bv"))
+            return new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(expr2Number(e).ToString()), size);
+        else
+            return e as LiteralExpr;
+    }
 }
