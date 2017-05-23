@@ -263,6 +263,11 @@ namespace TraceTransformer
 
                 if (node.Fun.FunctionName.Equals("$i2p.i64.ref") || node.Fun.FunctionName.Equals("$p2i.ref.i64") || node.Fun.FunctionName.Equals("$bitcast.ref.ref"))
                     return VisitExpr(node.Args[0]);
+                if (node.Fun.FunctionName.Equals("$p2i.ref.i32"))
+                {
+                    var newArgs = new List<Expr>() { VisitExpr(node.Args[0]) };
+                    return new NAryExpr(Token.NoToken, new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(func => func.Name.Equals("$trunc.bv64.bv32")).FirstOrDefault()), newArgs);
+                }
                 // build a bv expression
                 var bvFuncName = string.Join(".", funcName.Split('.').Select(elem => !elem.Contains("$") && !elem.Contains("bool")? "bv" + elem.Substring("i".Length) : elem));
                 if (!isLoadStore && node.Fun.FunctionName.Split('.').Any(s => s.Contains("ef")))
