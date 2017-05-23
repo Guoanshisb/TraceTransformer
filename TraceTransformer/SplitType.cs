@@ -306,11 +306,11 @@ namespace TraceTransformer
                             }
                         }
                     }
-                    else if (expr.Contains("_ptr") && !exprTypes[procName].Keys.Contains(expr))
+                    else if (expr.Contains("_ptr") && !exprTypes[procName].Keys.Contains(expr) && !expr.Contains("("))
                     {
                         // pass
                     }
-                    else if (expr.Contains("_val") && !exprTypes[procName].Keys.Contains(expr))
+                    else if (expr.Contains("_val") && !exprTypes[procName].Keys.Contains(expr) && !expr.Contains("("))
                     {
                         // pass
                     }
