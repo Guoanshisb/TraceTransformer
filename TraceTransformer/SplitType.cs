@@ -254,9 +254,9 @@ namespace TraceTransformer
             }
             var ui = new Unifier(allCons);
             solsInInt = ui.Unify();
-            Console.WriteLine("========================solution========================");
+            //Console.WriteLine("========================solution========================");
             //solsInInt.Where(s => s.Contains(-1)).Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
-            solsInInt.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
+            //solsInInt.Iter(s => Console.WriteLine(string.Join(", ", s.Select(ti => id2Tv(ti)))));
         }
 
         public void updateExprTypes()
