@@ -15,7 +15,7 @@ public class Diagnoser : StandardVisitor
 	public Diagnoser(Program prog)
 	{
         this.prog = prog;
-        var bvOps = new HashSet<string>() { "$and", "$or", "$lshr", "$shl", "$xor" };
+        var bvOps = new HashSet<string>() { "$and", "$or", "$lshr", "$ashr", "$shl", "$xor", "$nand", "$not"};
         var loadStores = new HashSet<string>() { "$load", "$store" };
         isBvOp = (string func) => { return bvOps.Contains(func.Split('.')[0]); };
         isLoadStore = (string func) => { return loadStores.Contains(func.Split('.')[0]); };
