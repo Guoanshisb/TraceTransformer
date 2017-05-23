@@ -33,7 +33,7 @@ namespace TraceTransformer
             Id2TypeVar = new Dictionary<int, string>();
             solsInTv = new List<HashSet<string>>();
             idCounter = 0;
-            bvOps = new List<string>() {"$and", "$or", "$lshr", "$shl", "$xor"};
+            bvOps = new List<string>() {"$and", "$or", "$lshr", "$ashr", "$shl", "$xor", "$nand", "$not"};
             globals = new HashSet<string>(prog.Variables.Select(v => v.Name));
             fakeGlobalProc = "$TTGlobal";
             exprTypes[fakeGlobalProc] = new Dictionary<string, Microsoft.Boogie.Type>();
