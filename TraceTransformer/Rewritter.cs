@@ -101,7 +101,7 @@ namespace TraceTransformer
                     param.TypedIdent.Type = expTypes[callee.Name][param.Name];
                 else if (isMemCpyOrMemset && param.Name.Equals("val"))
                 {
-                    var mapResType = callee.InParams[0].TypedIdent.Type.AsMap.Result;
+                    var mapResType = getType(node.Ins[0].ToString()).AsMap.Result;
                     if (!expTypes[callee.Name][param.Name].ToString().Equals(mapResType.ToString()))
                     {
                         param.TypedIdent.Type = mapResType;
@@ -110,6 +110,9 @@ namespace TraceTransformer
 
                     if (procTypes.Keys.Contains(arg.ToString()) && !getType(arg.ToString()).ToString().Equals(mapResType.ToString()))
                         procTypes[arg.ToString()] = mapResType;
+
+                    if (!param.TypedIdent.Type.ToString().Equals(mapResType.ToString()))
+                        param.TypedIdent.Type = mapResType;
                 }
             }
             List<Expr> newIns = new List<Expr>();
