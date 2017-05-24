@@ -67,13 +67,13 @@ public class Diagnoser : StandardVisitor
                     if (length > 1)
                     {
                         Console.WriteLine("Catch a bv op at " + node.ToString());
+                        maybeImprecise = true;
                     }
                 }
                 else
                 {
                     Console.WriteLine("Cannot parse int: " + node.Fun.FunctionName.Split('.')[1].Split('i')[1]);
                 }
-                maybeImprecise = true;
             }
         }
         if (isLoadStore(node.Fun.FunctionName))
