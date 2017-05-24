@@ -514,6 +514,7 @@ namespace TraceTransformer
         {
             // get callee
             Procedure callee = prog.TopLevelDeclarations.OfType<Procedure>().Where(p => p.Name.Equals(node.callee)).FirstOrDefault();
+            bool isMemCpyOrMemset = callee.Name.StartsWith("$memcpy") || callee.Name.StartsWith("$memset");
             foreach (var pair in node.Ins.Zip(callee.InParams))
             {
                 var arg = pair.Item1;
@@ -527,6 +528,9 @@ namespace TraceTransformer
                 {
                     typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), expr2TypeVar(param.Name, callee.Name) });
                 }
+
+                if (param.ToString().Equals("val"))
+                    typeConstraints[currProc].Add(new List<string>() { expr2TypeVar(arg, currProc.Name), expr2TypeVar(callee.InParams[0].Name + "_val", callee.Name)});
             }
             foreach (var pair in node.Outs.Zip(callee.OutParams))
             {
