@@ -85,7 +85,7 @@ public class Diagnoser : StandardVisitor
                 width = 32;
             else
             {
-                var type = node.Fun.FunctionName.Split('.')[1];
+                var type = node.Fun.FunctionName.Contains("bytes")? node.Fun.FunctionName.Split('.')[2] : node.Fun.FunctionName.Split('.')[1];
                 var prefix = type.StartsWith("i") ? "i" : "bv";
                 if (int.TryParse(type.Substring(prefix.Length), out width))
                 {
