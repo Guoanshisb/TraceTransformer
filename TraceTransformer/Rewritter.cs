@@ -12,6 +12,7 @@ namespace TraceTransformer
         string outputProg;
         Dictionary<string, Microsoft.Boogie.Type> procTypes;
         HashSet<string> globals;
+        int refWidth;
 
         public Rewritter(Program prog, Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> expTypes, string outputProg)
         {
@@ -19,6 +20,21 @@ namespace TraceTransformer
             this.expTypes = expTypes;
             this.outputProg = outputProg;
             globals = new HashSet<string>(prog.Variables.Select(g => g.Name));
+            refWidth = getRefWidth();
+        }
+
+        public int getRefWidth()
+        {
+            var typeSyn = prog.TopLevelDeclarations.OfType<TypeSynonymDecl>().Where(ts => ts.Name.Equals("ref")).FirstOrDefault();
+            return TTUtil.getWidthFromType(typeSyn.Body.ToString());
+        }
+
+        public int getWidthFromType(string type)
+        {
+            if (type.Equals("ref"))
+                return refWidth;
+            else
+                return TTUtil.getWidthFromType(type);
         }
 
         public void Rewrite()
@@ -126,13 +142,13 @@ namespace TraceTransformer
                     if (expTypes.Keys.Contains(callee.Name) && expTypes[callee.Name][param.Name].ToString().Contains("bv"))
                     {
                         if (!(isMemCpyOrMemset && param.TypedIdent.Type.ToString().Equals("ref")))
-                            newIns[i] = TTUtil.intLit2bvLit(arg, TTUtil.getWidthFromType(expTypes[callee.Name][param.Name].ToString()));
+                            newIns[i] = TTUtil.intLit2bvLit(arg, getWidthFromType(expTypes[callee.Name][param.Name].ToString()));
                     }
                 }
                 else if (isMemCpyOrMemset && param.TypedIdent.Type.ToString().Equals("ref") && getType(arg.ToString()).IsBv)
                 {
                     newIns[i] = new NAryExpr(Token.NoToken,
-                            new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(f => f.Name.Equals("$bv2int.64")).FirstOrDefault()),
+                            new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(f => f.Name.StartsWith("$bv2int")).FirstOrDefault()),
                             new List<Expr>() { arg });
                 }
             }
@@ -186,7 +202,7 @@ namespace TraceTransformer
                 {
                     if (getType(lhs.AsExpr.ToString()).ToString().Contains("bv"))
                     {
-                        newRhss[i] = TTUtil.intLit2bvLit(rhs, TTUtil.getWidthFromType(getType(lhs.AsExpr.ToString()).ToString()));
+                        newRhss[i] = TTUtil.intLit2bvLit(rhs, getWidthFromType(getType(lhs.AsExpr.ToString()).ToString()));
                     }
                 }
             }
@@ -212,7 +228,7 @@ namespace TraceTransformer
                     if (!getType(node.Args[noLit].ToString()).ToString().Contains("bv"))
                         return node;
                     node.Args[lit] = TTUtil.intLit2bvLit(node.Args[lit],
-                        TTUtil.getWidthFromType(getType(node.Args[noLit].ToString()).ToString()));
+                        getWidthFromType(getType(node.Args[noLit].ToString()).ToString()));
                     VisitExpr(node.Args[noLit]);
                     return node;
                 }
@@ -247,7 +263,7 @@ namespace TraceTransformer
                     var arg = node.Args[i];
                     if (!(isLoadStore && i == 1) && bv && TTUtil.isNumber(arg))
                     {
-                        int size = TTUtil.getWidthFromType(inputType);
+                        int size = getWidthFromType(inputType);
                         node.Args[i] = TTUtil.intLit2bvLit(arg, size);
                         continue;
                     }
@@ -256,7 +272,7 @@ namespace TraceTransformer
                     {
                         if (procTypes.Keys.Contains(arg.ToString()) && getType(arg.ToString()).IsBv)
                         { node.Args[i] = new NAryExpr(Token.NoToken,
-                            new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(f => f.Name.Equals("$bv2int.64")).FirstOrDefault()),
+                            new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(f => f.Name.StartsWith("$bv2int")).FirstOrDefault()),
                             new List<Expr>() { arg });
                         }
                     }
@@ -268,21 +284,28 @@ namespace TraceTransformer
                 if (!bv)
                     return node;
 
-                if (node.Fun.FunctionName.Equals("$i2p.i64.ref") || node.Fun.FunctionName.Equals("$p2i.ref.i64") || node.Fun.FunctionName.Equals("$bitcast.ref.ref"))
+                if (node.Fun.FunctionName.Equals("$i2p.i64.ref") || node.Fun.FunctionName.Equals("$i2p.i32.ref") || node.Fun.FunctionName.Equals("$p2i.ref.i64") || node.Fun.FunctionName.Equals("$bitcast.ref.ref"))
                     return VisitExpr(node.Args[0]);
                 if (node.Fun.FunctionName.Equals("$p2i.ref.i32"))
                 {
-                    var newArgs = new List<Expr>() { VisitExpr(node.Args[0]) };
-                    return new NAryExpr(Token.NoToken, new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(func => func.Name.Equals("$trunc.bv64.bv32")).FirstOrDefault()), newArgs);
+                    if (refWidth == 64)
+                    {
+                        var newArgs = new List<Expr>() { VisitExpr(node.Args[0]) };
+                        return new NAryExpr(Token.NoToken, new FunctionCall(prog.TopLevelDeclarations.OfType<Function>().Where(func => func.Name.Equals("$trunc.bv64.bv32")).FirstOrDefault()), newArgs);
+                    }
+                    else
+                    {
+                        return VisitExpr(node.Args[0]);
+                    }
                 }
                 // build a bv expression
                 var bvFuncName = string.Join(".", funcName.Split('.').Select(elem => !elem.Contains("$") && !elem.Contains("bool")? "bv" + elem.Substring("i".Length) : elem));
                 if (!isLoadStore && node.Fun.FunctionName.Split('.').Any(s => s.Contains("ef")))
-                    bvFuncName = string.Join(".", bvFuncName.Split('.').Select(s => s.Contains("ef")? "bv64" : s));
+                    bvFuncName = string.Join(".", bvFuncName.Split('.').Select(s => s.Contains("ef")? "bv"+refWidth : s));
                 else if (node.Fun.FunctionName.Contains("$load") || node.Fun.FunctionName.Contains("$store"))
                 {
                     var mapSize = getType(node.Args[0].ToString()).AsMap.Result.BvBits;
-                    int opSize = TTUtil.getWidthFromType(inputType);
+                    int opSize = getWidthFromType(inputType);
                     //if (inputType.Equals("ref"))
                     //    opSize = 64;
                     //else if (int.TryParse(inputType.Substring("i".Length), out opSize))

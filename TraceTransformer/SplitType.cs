@@ -23,6 +23,7 @@ namespace TraceTransformer
         Dictionary<string, int> mapSizes;
         bool considerBv;
         Dictionary<string, Implementation> implsByName;
+        int refWidth;
 
         public SplitType(Program prog, Dictionary<string, int> mapSizes)
         {
@@ -42,6 +43,22 @@ namespace TraceTransformer
             considerBv = true;
             implsByName = new Dictionary<string, Implementation>();
             prog.Implementations.Iter(impl => implsByName[impl.Name] = impl);
+            refWidth = getRefWidth();
+            //Console.WriteLine(refWidth);
+        }
+
+        public int getRefWidth()
+        {
+            var typeSyn = prog.TopLevelDeclarations.OfType<TypeSynonymDecl>().Where(ts => ts.Name.Equals("ref")).FirstOrDefault();
+            return TTUtil.getWidthFromType(typeSyn.Body.ToString());
+        }
+
+        public int getWidthFromType(string type)
+        {
+            if (type.Equals("ref"))
+                return refWidth;
+            else
+                return TTUtil.getWidthFromType(type);
         }
 
         public Dictionary<string, Dictionary<string, Microsoft.Boogie.Type>> getTypes()
@@ -290,7 +307,7 @@ namespace TraceTransformer
                                 //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(8);
                                 //else
                                 //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(size);
-                                typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(TTUtil.getWidthFromType(typeMap[map].AsMap.Result.ToString()));
+                                typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(getWidthFromType(typeMap[map].AsMap.Result.ToString()));
                             }
                         }
                         if (snd.Equals("ptr"))
@@ -302,7 +319,7 @@ namespace TraceTransformer
                                 //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(8);
                                 //else
                                 //    typeMap[map].AsMap.Result = Microsoft.Boogie.Type.GetBvType(size);
-                                typeMap[map].AsMap.Arguments[0] = Microsoft.Boogie.Type.GetBvType(64);
+                                typeMap[map].AsMap.Arguments[0] = Microsoft.Boogie.Type.GetBvType(refWidth);
                             }
                         }
                     }
@@ -337,7 +354,7 @@ namespace TraceTransformer
                         }
                         if (isBV && !typeMap[expr].IsBv)
                         {
-                            typeMap[expr] = Microsoft.Boogie.Type.GetBvType(TTUtil.getWidthFromType(typeMap[expr].ToString()));
+                            typeMap[expr] = Microsoft.Boogie.Type.GetBvType(getWidthFromType(typeMap[expr].ToString()));
                         }
                     }
                     else
@@ -353,12 +370,12 @@ namespace TraceTransformer
                             if (funcName.Equals("$sext") || funcName.Equals("$zext") || funcName.Equals("$trunc"))
                             {
                                 rt = expr.Split('(')[0].Split('.')[2];
-                                length = TTUtil.getWidthFromType(rt);
+                                length = getWidthFromType(rt);
                             }
                             else
                             {
                                 rt = expr.Split('(')[0].Split('.')[1];
-                                length = TTUtil.getWidthFromType(rt);
+                                length = getWidthFromType(rt);
                             }
                             typeMap[expr] = Microsoft.Boogie.Type.GetBvType(length);
                         }

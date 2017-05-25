@@ -16,7 +16,7 @@ public static class TTUtil
         int width;
         if (type.Equals("ref"))
         {
-            width = 64;
+            width = -1;
         }
         else if (type.Equals("float"))
         {
@@ -156,13 +156,16 @@ public static class TTUtil
             return false;
     }
 
-    public static string expr2Number(Expr e)
+    public static string expr2Number(Expr e, int size)
     {
         string lit;
         if (e is NAryExpr)
         {
             int val = int.Parse(e.ToString());
-            lit = ((UInt64)((Int64)val)).ToString();
+            if (size == 64)
+                lit = ((UInt64)((Int64)val)).ToString();
+            else
+                lit = ((UInt32)val).ToString();
 
         }
         else
@@ -173,7 +176,7 @@ public static class TTUtil
     public static LiteralExpr intLit2bvLit(Expr e, int size)
     {
         if (!e.ToString().Contains("bv"))
-            return new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(expr2Number(e).ToString()), size);
+            return new LiteralExpr(Token.NoToken, Microsoft.Basetypes.BigNum.FromString(expr2Number(e, size).ToString()), size);
         else
             return e as LiteralExpr;
     }
