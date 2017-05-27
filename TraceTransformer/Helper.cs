@@ -20,7 +20,9 @@ namespace TraceTransformer
         {
             gatherConsts();
             //prog.Implementations.Iter(impl => VisitImplementation(impl));
-            Visit(prog);
+            //Visit(prog);
+            foreach (var impl in prog.TopLevelDeclarations.OfType<Implementation>())
+                VisitImplementation(impl);
         }
 
         public override Expr VisitIdentifierExpr(IdentifierExpr node)
